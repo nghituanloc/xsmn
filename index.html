@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5"/>
+<title>KQXS Miền Nam — Người Cao Tuổi</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#b71c1c">
+
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
+
+<style>
+  :root{
+    --bg:#f3f4f6; 
+    --panel:#ffffff; 
+    --text:#111827;
+    --red:#d32f2f; 
+    --blue:#1565c0;
+    --btn-border:#9ca3af;
+    --sticky-bg: #fff0f0;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: Helvetica, Arial, sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    padding-bottom: 20px; /* Chừa chỗ cho footer */
+    overflow-y: auto; 
+  }
+  .wrap{max-width:1400px;margin:0 auto;padding:10px; min-height: 90vh; display: flex; flex-direction: column;}
+
+  /* --- CONTROL AREA --- */
+  .control-area {
+    background: #fff;
+    padding: 15px 10px;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  /* NAV BAR */
+  .nav-bar {
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    gap: 10px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .btn-arrow {
+    background: white;
+    border: 2px solid var(--btn-border);
+    border-radius: 10px;
+    width: 60px;
+    font-size: 28px;
+    font-weight: 700;
+    color: #374151;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    touch-action: manipulation;
+  }
+  .btn-arrow:active { background: #e5e7eb; transform: scale(0.95); }
+
+  input[type="date"] {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: 1;
+    height: 60px;
+    font-size: 22px; 
+    font-weight: 700;
+    text-align: center;
+    color: #111;
+    padding: 0 10px;
+    background-color: #fff;
+    border: 2px solid var(--blue);
+    border-radius: 10px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+  }
+
+  /* --- BẢNG KẾT QUẢ --- */
+  .panel{
+    background:var(--panel);
+    border-radius:12px;
+    overflow:hidden;
+    box-shadow:0 2px 10px rgba(0,0,0,0.1);
+    border: 1px solid #ddd;
+    margin-bottom: 30px;
+    flex: 1; /* Đẩy footer xuống đáy */
+  }
+  .caption{
+    background:var(--red);
+    color:#fff;
+    padding:15px;
+    text-align: center;
+    font-weight: 800;
+    font-size: 20px;
+    text-transform: uppercase;
+  }
+
+  #tableWrap{
+    width: 100%;
+    overflow-x: auto; 
+    overflow-y: hidden;
+    max-height: none; 
+    position: relative;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y; 
+  }
+  
+  .tbl{ width:100%; border-collapse: separate; border-spacing: 0; }
+  .tbl th, .tbl td{ 
+    border-right: 1px solid #cbd5e1; 
+    border-bottom: 1px solid #cbd5e1; 
+    padding: 15px 5px; 
+    text-align:center; 
+    vertical-align:middle; 
+  }
+
+  /* Sticky Styles */
+  .tbl .prize, .tbl thead th:first-child { 
+    width: 1%; white-space: nowrap; 
+    position: sticky; left: 0; 
+    background: var(--sticky-bg); 
+    border-right: 3px solid #999; 
+    text-align: center; padding: 15px 5px; font-weight: 800;
+    z-index: 40;
+  }
+  .tbl thead th.province {
+    font-size: 22px; font-weight: 900; background: #ffffff; padding: 20px 5px;
+    border-bottom: 2px solid #b71c1c; min-width: 140px;
+    position: sticky; top: 0; z-index: 50; 
+  }
+  .tbl thead th:first-child {
+    top: 0; z-index: 60; background: #fff0f0; border-bottom: 2px solid #b71c1c; font-size: 17px; color: #333;
+  }
+
+  /* Text Sizes */
+  .tbl tbody td:not(.prize) { font-size: 50px !important; font-weight: 900; letter-spacing: 2px; line-height: 1.2; min-width: 150px; }
+  .tbl .g8 { color: var(--red); font-size: 55px !important; }
+  .tbl .db { color: #d50000; font-size: 55px !important; }
+  
+  #scratch{display:none}
+
+  /* --- FOOTER & INSTALL BUTTON --- */
+  .main-footer {
+    text-align: center;
+    padding: 20px 10px;
+    color: #6b7280;
+    font-size: 14px;
+    margin-top: auto;
+  }
+  .copyright b { color: #333; }
+  
+  .btn-install {
+    display: none; /* Mặc định ẩn, hiện khi trình duyệt cho phép */
+    background-color: #16a34a; /* Màu xanh lá dễ chịu */
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 50px;
+    margin-bottom: 15px;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(22, 163, 74, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+  }
+
+  @media (max-width: 768px) {
+    .wrap { padding: 5px; }
+    input[type="date"] { font-size: 20px; }
+    .btn-arrow { width: 50px; font-size: 24px; }
+    .tbl thead th.province { font-size: 18px; padding: 15px 5px; min-width: 110px; } 
+    .tbl tbody td:not(.prize) { font-size: 40px !important; letter-spacing: 1px; min-width: 110px; }
+    .tbl .g8 { font-size: 45px !important; }
+    .tbl .db { font-size: 44px !important; }
+    .tbl .prize, .tbl thead th:first-child { font-size: 15px; padding: 10px 4px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="control-area">
+    <div class="nav-bar">
+      <button class="btn-arrow" onclick="changeDate(-1)">&#10094;</button>
+      <input id="date" type="date" onchange="handleDateChange()" />
+      <button class="btn-arrow" onclick="changeDate(1)">&#10095;</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="caption">KẾT QUẢ XỔ SỐ MIỀN NAM</div>
+    <div id="tableWrap">
+      <table class="tbl" id="grid"></table>
+    </div>
+  </div>
+
+  <footer class="main-footer">
+    <button id="btnInstall" class="btn-install">📲 CÀI ỨNG DỤNG</button>
+    <div class="copyright">
+      Phát triển bởi <b>Loc</b> &copy; 2025
+    </div>
+  </footer>
+
+  <div id="scratch"></div>
+</div>
+
+<script>
+// --- LOGIC CÀI APP (PWA) ---
+let deferredPrompt;
+const btnInstall = document.getElementById('btnInstall');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Ngăn Chrome hiển thị popup mặc định
+  e.preventDefault();
+  // Lưu sự kiện để dùng sau
+  deferredPrompt = e;
+  // Hiện nút cài đặt của mình
+  btnInstall.style.display = 'inline-block';
+});
+
+btnInstall.addEventListener('click', async () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    deferredPrompt = null;
+    btnInstall.style.display = 'none'; // Ẩn nút sau khi bấm
+  }
+});
+
+// --- LOGIC XỔ SỐ (GIỮ NGUYÊN) ---
+const DAY_MAP = {
+  mon:[{n:'TP. HCM',s:'tp-hcm'},{n:'Đồng Tháp',s:'dong-thap'},{n:'Cà Mau',s:'ca-mau'}],
+  tue:[{n:'Bến Tre',s:'ben-tre'},{n:'Vũng Tàu',s:'vung-tau'},{n:'Bạc Liêu',s:'bac-lieu'}],
+  wed:[{n:'Đồng Nai',s:'dong-nai'},{n:'Cần Thơ',s:'can-tho'},{n:'Sóc Trăng',s:'soc-trang'}],
+  thu:[{n:'Tây Ninh',s:'tay-ninh'},{n:'An Giang',s:'an-giang'},{n:'Bình Thuận',s:'binh-thuan'}],
+  fri:[{n:'Vĩnh Long',s:'vinh-long'},{n:'Bình Dương',s:'binh-duong'},{n:'Trà Vinh',s:'tra-vinh'}],
+  sat:[{n:'TP. HCM',s:'tp-hcm'},{n:'Long An',s:'long-an'},{n:'Bình Phước',s:'binh-phuoc'},{n:'Hậu Giang',s:'hau-giang'}],
+  sun:[{n:'Tiền Giang',s:'tien-giang'},{n:'Kiên Giang',s:'kien-giang'},{n:'Đà Lạt',s:'da-lat'}]
+};
+const JS_DAY_KEY = ['sun','mon','tue','wed','thu','fri','sat'];
+const DAY_NAMES_VI = ['CHỦ NHẬT', 'THỨ HAI', 'THỨ BA', 'THỨ TƯ', 'THỨ NĂM', 'THỨ SÁU', 'THỨ BẢY'];
+
+const REFRESH_START_MIN = 16*60 + 15; 
+const RESULT_FINAL_MIN = 16*60 + 45;
+
+function vnNow(){ return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Ho_Chi_Minh'})); }
+function pad(n){return n<10?('0'+n):n}
+function toDMY(d){return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`}
+function toISO(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+function parseISOToDate(iso){ const [y,m,d] = iso.split('-').map(Number); return new Date(y, (m||1)-1, d||1); }
+function isoToDmyDash(iso){ if(!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}-${m}-${y}`; }
+
+let baseDate = vnNow();
+const now = vnNow();
+if((now.getHours()*60 + now.getMinutes()) < REFRESH_START_MIN){
+  baseDate.setDate(baseDate.getDate()-1);
+}
+let currentDay = JS_DAY_KEY[baseDate.getDay()];
+
+window.addEventListener('load', () => { updateUI(baseDate); loadAll(); manageAutoRefresh(); });
+
+function updateUI(dateObj) {
+  const iso = toISO(dateObj);
+  document.getElementById('date').value = iso;
+  currentDay = JS_DAY_KEY[dateObj.getDay()];
+}
+
+function checkFutureAndAlert(selectedDate) {
+  const current = vnNow();
+  const todayStart = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+  const selectedStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+
+  if (selectedStart > todayStart) {
+    const diffTime = selectedStart - todayStart;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    alert(`Chưa có kết quả ngày ${toDMY(selectedDate)}, vui lòng đợi ${diffDays} ngày nữa nhé!`);
+    return true; 
+  }
+  return false; 
+}
+
+function changeDate(offset) {
+  const input = document.getElementById('date');
+  const d = parseISOToDate(input.value);
+  d.setDate(d.getDate() + offset);
+  if(checkFutureAndAlert(d)) return;
+  updateUI(d); 
+  loadAll();
+}
+
+function handleDateChange() {
+  const input = document.getElementById('date');
+  if(!input.value) return;
+  const d = parseISOToDate(input.value);
+  if(checkFutureAndAlert(d)) {
+    updateUI(vnNow());
+    return;
+  }
+  updateUI(d); 
+  loadAll();
+}
+
+async function loadAll(){
+  const iso = document.getElementById('date').value;
+  const dash = isoToDmyDash(iso);
+  $('#scratch').empty();
+  const list = DAY_MAP[currentDay] || [];
+  const results = [];
+  for (const p of list){
+    const data = await loadProvince(p.s, dash);
+    if(data) results.push(data);
+  }
+  const dayName = DAY_NAMES_VI[JS_DAY_KEY.indexOf(currentDay)];
+  const shownDate = (iso && toDMY(parseISOToDate(iso))) || '';
+  renderTable(dayName, shownDate, results);
+}
+
+function loadProvince(slug, dmyDash){
+  return new Promise(resolve=>{
+    const scratch = document.getElementById('scratch');
+    scratch.id = 'box_kqxs_minhngoc';
+    const s = document.createElement('script');
+    s.src = dmyDash ? `https://www.minhngoc.com.vn/getkqxs/${slug}/${dmyDash}.js` : `https://www.minhngoc.com.vn/getkqxs/${slug}.js`;
+    s.onerror = ()=>{ document.getElementById('box_kqxs_minhngoc').id = 'scratch'; resolve(null); };
+    s.onload = ()=>{
+      const holder = document.getElementById('box_kqxs_minhngoc');
+      holder.id = 'scratch';
+      const $box = $('#scratch').find('.box_kqxs_mini').last();
+      if($box.length===0){ resolve(null); return; }
+      const title = $box.find('.title').text().trim();
+      const m = title.match(/KQXS\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})/i);
+      const province = m ? m[1] : slug;
+      const dateText = m ? m[2] : '';
+      function pick(sel){ return ($box.find(sel).first().text()||'').replace(/\s+/g,' ').trim(); }
+      function prettify(s){ return s ? s.split('-').map(x=>x.trim()).join('<br>') : ''; }
+      resolve({
+        province, date: dateText,
+        g8: prettify(pick('.giai8')), g7: prettify(pick('.giai7')), g6: prettify(pick('.giai6')),
+        g5: prettify(pick('.giai5')), g4: prettify(pick('.giai4')), g3: prettify(pick('.giai3')),
+        g2: prettify(pick('.giai2')), g1: prettify(pick('.giai1')), db: prettify(pick('.giaidb'))
+      });
+    };
+    document.body.appendChild(s);
+  });
+}
+
+function renderTable(dayName, dateText, cols){
+  const grid = document.getElementById('grid');
+  if(!cols || cols.length===0){
+    grid.innerHTML = '<tbody><tr><td style="padding:30px; font-size:20px;">Chưa có dữ liệu...</td></tr></tbody>';
+    return;
+  }
+  const prizes = [
+    {k:'g8',n:'Giải Tám',cls:'g8'},{k:'g7',n:'Giải Bảy'},{k:'g6',n:'Giải Sáu'},
+    {k:'g5',n:'Giải Năm'},{k:'g4',n:'Giải Tư'},{k:'g3',n:'Giải Ba'},
+    {k:'g2',n:'Giải Nhì'},{k:'g1',n:'Giải Nhất'},{k:'db',n:'ĐẶC BIỆT',cls:'db'}
+  ];
+  const thead = `
+    <thead>
+      <tr>
+        <th class="province">${dayName}</th>
+        ${cols.map(c=>`<th class="province">${c.province}</th>`).join('')}
+      </tr>
+    </thead>`;
+  const tbody = `<tbody>${prizes.map(p=>`<tr><td class="prize">${p.n}</td>${cols.map(c=>`<td class="${p.cls||''}">${c[p.k]||''}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  grid.innerHTML = thead + tbody;
+}
+
+let refreshTimer = null;
+function manageAutoRefresh(){
+  if(refreshTimer) clearInterval(refreshTimer);
+  const n = vnNow();
+  const m = n.getHours()*60 + n.getMinutes();
+  const viewingDate = parseISOToDate(document.getElementById('date').value);
+  const today = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  if(viewingDate.getTime() === today.getTime() && m >= REFRESH_START_MIN && m < RESULT_FINAL_MIN){
+    refreshTimer = setInterval(loadAll, 60000);
+  }
+}
+</script>
+</body>
+</html>

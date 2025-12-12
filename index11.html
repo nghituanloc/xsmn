@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>KQXS Miền Nam — Theo Thứ (auto: hôm qua)</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#b71c1c">
+<!-- jQuery (API Minh Ngọc phụ thuộc vào $) -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
+<style>
+  :root{
+    --bg:#eef2f7; --panel:#ffffff; --line:#d9dde7; --muted:#5b657a;
+    --head:#374151; --brand:#c62828; --accent:#2563eb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#0f172a}
+  .wrap{max-width:1200px;margin:20px auto;padding:0 15px}
+  h1{margin:0 0 15px;font-size:24px;color:#111827}
+  .bar{display:flex;gap:15px;flex-wrap:wrap;align-items:center;margin:15px 0 20px}
+  .ctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .ctrl label{font-weight:600;color:#374151;font-size:16px}
+   .ctrl input{padding:12px 15px;border:2px solid var(--line);border-radius:8px;font-size:16px;min-width:150px}
+  .ctrl input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,0.1)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+  .caption{display:flex;align-items:center;gap:10px;background:#b71c1c;color:#fff;padding:15px 20px;font-weight:800;font-size:18px}
+  .caption small{opacity:.9;font-weight:600;font-size:14px}
+  .tbl{width:100%;border-collapse:collapse;font-size:16px;table-layout:auto;min-width:700px}
+  .tbl th,.tbl td{border:1px solid var(--line);padding:12px 8px;text-align:center;vertical-align:middle;background:#fff;font-variant-numeric:tabular-nums}
+  .tbl thead th{background:#fafbff;color:#111827;font-weight:800;font-size:18px}
+  .tbl .prize{width:120px;text-align:left;font-weight:700;color:#111827;background:#fafbff;font-size:16px}
+  /* Cố định độ rộng cột đầu (Thứ/Ngày tháng) gọn hơn */
+  .tbl thead th:first-child{width:120px}
+  .tbl .g8{font-size:42px;font-weight:900;color:#b91c1c;line-height:1.2}
+  .tbl .db{font-size:38px;font-weight:900;color:#b71c1c;line-height:1.2}
+  /* Tăng kích thước tất cả ô số kết quả ~50px, ưu tiên cao hơn */
+  .tbl tbody td:not(.prize){font-size:48px !important;line-height:1.25;font-weight:900}
+  /* Không ép min-width cột kết quả để cột tự vừa nội dung */
+  .tbl .province{font-weight:900;font-size:22px}
+  .tbl .thin{color:var(--muted);font-size:18px;font-weight:700}
+  .foot{display:flex;justify-content:space-between;align-items:center;padding:15px 20px;background:#fafbff;border-top:1px solid var(--line);color:#4b5563;font-size:14px}
+  /* Ẩn vùng chứa thô do API append */
+  #scratch{display:none}
+  /* Cho phép cuộn ngang khi bảng rộng */
+  #tableWrap{overflow-x:auto}
+  
+  /* Responsive cho mobile */
+  @media (max-width: 768px) {
+    .wrap{padding:0 10px;margin:15px auto}
+    .bar{margin:10px 0 15px;gap:10px}
+    .ctrl{flex-direction:column;align-items:stretch;gap:8px}
+    .ctrl input{min-width:auto;width:100%}
+    .caption{padding:12px 15px;font-size:16px}
+    .tbl{font-size:14px}
+    .tbl th,.tbl td{padding:10px 6px}
+    .tbl .prize{width:100px;font-size:14px}
+    .tbl thead th:first-child{width:100px}
+    .tbl .g8{font-size:32px}
+    .tbl .db{font-size:30px}
+    .tbl tbody td:not(.prize){font-size:42px !important}
+    /* Không ép min-width trên mobile */
+    .tbl thead th{font-size:16px}
+    .tbl .province{font-size:18px}
+    .tbl .thin{font-size:16px;font-weight:700}
+    .foot{padding:12px 15px}
+  }
+  
+  /* Responsive cho tablet */
+  @media (max-width: 1024px) and (min-width: 769px) {
+    .wrap{max-width:100%;padding:0 20px}
+    .tbl .g8{font-size:36px}
+    .tbl .db{font-size:34px}
+    .tbl tbody td:not(.prize){font-size:50px !important}
+    .tbl thead th{font-size:17px}
+    .tbl .province{font-size:20px}
+    .tbl .thin{font-size:18px;font-weight:700}
+    /* Không ép min-width trên tablet */
+  }
+  
+  /* Tối ưu cho màn hình lớn */
+  @media (min-width: 1200px) {
+    .tbl .g8{font-size:56px}
+    .tbl .db{font-size:52px}
+    .tbl tbody td:not(.prize){font-size:56px !important}
+    .tbl th,.tbl td{padding:18px 12px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div class="ctrl">
+      <label for="date">Kết quả ngày</label>
+      <input id="date" type="date" />
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="caption">
+      <span>KẾT QUẢ XỔ SỐ MIỀN NAM</span>
+      <small id="capDate"></small>
+    </div>
+    <div id="tableWrap">
+      <table class="tbl" id="grid"></table>
+    </div>
+    <div class="foot"><span id="status" class="thin"></span></div>
+  </div>
+
+  <!-- nơi API Minh Ngọc sẽ tự append -->
+  <div id="scratch"></div>
+</div>
+
+<script>
+// Đăng ký Service Worker cho PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('./service-worker.js');
+  });
+}
+
+/* ====== CẤU HÌNH LỊCH TỈNH THEO THỨ (MIỀN NAM) ====== */
+const DAY_MAP = {
+  mon:[{n:'TP. HCM',s:'tp-hcm'},{n:'Đồng Tháp',s:'dong-thap'},{n:'Cà Mau',s:'ca-mau'}],
+  tue:[{n:'Bến Tre',s:'ben-tre'},{n:'Vũng Tàu',s:'vung-tau'},{n:'Bạc Liêu',s:'bac-lieu'}],
+  wed:[{n:'Đồng Nai',s:'dong-nai'},{n:'Cần Thơ',s:'can-tho'},{n:'Sóc Trăng',s:'soc-trang'}],
+  thu:[{n:'Tây Ninh',s:'tay-ninh'},{n:'An Giang',s:'an-giang'},{n:'Bình Thuận',s:'binh-thuan'}],
+  fri:[{n:'Vĩnh Long',s:'vinh-long'},{n:'Bình Dương',s:'binh-duong'},{n:'Trà Vinh',s:'tra-vinh'}],
+  sat:[{n:'TP. HCM',s:'tp-hcm'},{n:'Long An',s:'long-an'},{n:'Bình Phước',s:'binh-phuoc'},{n:'Hậu Giang',s:'hau-giang'}],
+  sun:[{n:'Tiền Giang',s:'tien-giang'},{n:'Kiên Giang',s:'kien-giang'},{n:'Đà Lạt',s:'da-lat'}]
+};
+const JS_DAY_KEY = ['sun','mon','tue','wed','thu','fri','sat'];
+// Mốc thời gian theo phút trong ngày (giờ VN)
+const REFRESH_START_MIN = 16*60 + 15; // 16:15 bắt đầu có kết quả rải rác -> auto refresh
+const RESULT_FINAL_MIN = 16*60 + 45;  // 16:45 coi như chốt kết quả
+
+/* ====== Helper thời gian theo múi giờ VN & format ====== */
+function vnNow(){
+  return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Ho_Chi_Minh'}));
+}
+function pad(n){return n<10?('0'+n):n}
+ function toDMY(d){return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`}
+ function toISO(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+ function parseISOToDate(iso){ const [y,m,d] = iso.split('-').map(Number); return new Date(y, (m||1)-1, d||1); }
+ function isoToDmyDash(iso){ if(!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}-${m}-${y}`; }
+
+/* ====== MẶC ĐỊNH: HÔM QUA HOẶC HÔM NAY (giờ VN) ====== */
+let baseDate = vnNow();
+const now = vnNow();
+const currentHour = now.getHours();
+const currentMinute = now.getMinutes();
+const currentTime = currentHour * 60 + currentMinute;
+// Nếu >= 16:15 thì hiển thị hôm nay (dù chưa chốt), trước đó hiển thị hôm qua
+if(currentTime >= REFRESH_START_MIN){
+  baseDate = now;
+} else {
+  baseDate.setDate(baseDate.getDate()-1);
+}
+
+let currentDay = JS_DAY_KEY[baseDate.getDay()];
+ document.getElementById('date').value = toISO(baseDate);
+ document.getElementById('capDate').textContent = `— ${toDMY(baseDate)}`;
+
+/* ====== Sẵn biến/func để script của Minh Ngọc không lỗi ====== */
+window.bgcolor='#e5efff'; window.titlecolor='#000'; window.dbcolor='#b71c1c';
+window.kqwidth='100%'; window.fsize='14px';
+window.updatecolor = function(){/* no-op */};
+
+/* ====== Nạp script 1 tỉnh -> Parse -> Trả object dữ liệu ====== */
+function loadProvince(slug, dmyDash){
+  return new Promise(resolve=>{
+    // đổi tạm id đích để script của họ append vào vùng ẩn
+    const scratch = document.getElementById('scratch');
+    scratch.id = 'box_kqxs_minhngoc';
+
+    const s = document.createElement('script');
+    s.src = dmyDash
+      ? `https://www.minhngoc.com.vn/getkqxs/${slug}/${dmyDash}.js`
+      : `https://www.minhngoc.com.vn/getkqxs/${slug}.js`;
+
+    s.onerror = ()=>{
+      // đổi trả id
+      document.getElementById('box_kqxs_minhngoc').id = 'scratch';
+      resolve(null);
+    };
+
+    s.onload = ()=>{
+      // sau khi append xong -> đổi id lại
+      const holder = document.getElementById('box_kqxs_minhngoc');
+      holder.id = 'scratch';
+
+      const $box = $('#scratch').find('.box_kqxs_mini').last();
+      if($box.length===0){ resolve(null); return; }
+
+      const title = $box.find('.title').text().trim(); // "KQXS Trà Vinh 10/10/2025"
+      const m = title.match(/KQXS\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})/i);
+      const province = m ? m[1] : slug;
+      const dateText = m ? m[2] : '';
+
+      function pick(sel){ return ($box.find(sel).first().text()||'').replace(/\s+/g,' ').trim(); }
+      function prettify(s){ return s ? s.split('-').map(x=>x.trim()).join('<br>') : ''; }
+
+      const data = {
+        province, date: dateText,
+        g8: prettify(pick('.giai8')),
+        g7: prettify(pick('.giai7')),
+        g6: prettify(pick('.giai6')),
+        g5: prettify(pick('.giai5')),
+        g4: prettify(pick('.giai4')),
+        g3: prettify(pick('.giai3')),
+        g2: prettify(pick('.giai2')),
+        g1: prettify(pick('.giai1')),
+        db: prettify(pick('.giaidb'))
+      };
+      resolve(data);
+    };
+
+    document.body.appendChild(s);
+  });
+}
+
+/* ====== Dựng bảng lớn giống giao diện mẫu ====== */
+function renderTable(dayName, dateText, cols){
+  const grid = document.getElementById('grid');
+  if(!cols || cols.length===0){
+    grid.innerHTML = '<tbody><tr><td style="padding:16px">Không có dữ liệu.</td></tr></tbody>';
+    return;
+  }
+  const prizes = [
+    {k:'g8', n:'Giải tám', cls:'g8'},
+    {k:'g7', n:'Giải bảy'},
+    {k:'g6', n:'Giải sáu'},
+    {k:'g5', n:'Giải năm'},
+    {k:'g4', n:'Giải tư'},
+    {k:'g3', n:'Giải ba'},
+    {k:'g2', n:'Giải nhì'},
+    {k:'g1', n:'Giải nhất'},
+    {k:'db', n:'Giải Đặc Biệt', cls:'db'}
+  ];
+
+  const thead = `
+    <thead>
+      <tr>
+        <th class="province">${dayName}</th>
+        ${cols.map(c=>`<th class="province">${c.province}</th>`).join('')}
+      </tr>
+      <tr>
+        <th class="thin">${dateText||cols[0].date||''}</th>
+        ${cols.map(()=>`<th class="thin"></th>`).join('')}
+      </tr>
+    </thead>`;
+  const tbody = `
+    <tbody>
+      ${prizes.map(p=>`
+        <tr>
+          <td class="prize">${p.n}</td>
+          ${cols.map(c=>`<td class="${p.cls||''}">${c[p.k]||''}</td>`).join('')}
+        </tr>`).join('')}
+    </tbody>`;
+  grid.innerHTML = thead + tbody;
+}
+
+/* ====== Xử lý khi thay đổi ngày ====== */
+ function handleDateChange(){
+   const dateInput = document.getElementById('date');
+   const iso = dateInput.value.trim();
+   
+   if(iso){
+     const inputDate = parseISOToDate(iso);
+     const now = vnNow();
+     
+     // Kiểm tra tương lai
+     if(inputDate > now){
+       alert('Không thể xem kết quả của ngày tương lai!');
+       dateInput.value = toISO(baseDate); // reset về ngày mặc định
+       return;
+     }
+     
+    // Kiểm tra nếu hôm nay và trước 16:15 (chưa có kết quả)
+     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+     const inputOnly = new Date(inputDate.getFullYear(), inputDate.getMonth(), inputDate.getDate());
+     if(inputOnly.getTime() === today.getTime()){
+       const currentHour = now.getHours();
+       const currentMinute = now.getMinutes();
+       const currentTime = currentHour * 60 + currentMinute;
+      if(currentTime < REFRESH_START_MIN){
+         alert('Kết quả sẽ có vào 16h30 hôm nay!');
+         dateInput.value = toISO(baseDate);
+         return;
+       }
+     }
+     
+     const dayOfWeek = JS_DAY_KEY[inputDate.getDay()];
+     currentDay = dayOfWeek;
+   }
+   
+   loadAll();
+  manageAutoRefresh();
+ }
+async function loadAll(){
+  const status = document.getElementById('status');
+  const iso = (document.getElementById('date').value||'').trim();
+  const dash = iso ? isoToDmyDash(iso) : '';
+  document.getElementById('capDate').textContent = iso ? `— ${toDMY(parseISOToDate(iso))}` : '';
+
+  status.textContent = 'Đang tải…';
+  $('#scratch').empty();
+
+  const list = DAY_MAP[currentDay] || [];
+  const results = [];
+  for (const p of list){
+    const data = await loadProvince(p.s, dash); // nạp tuần tự để chắc chắn parse đúng
+    if(data) results.push(data);
+  }
+
+  // Lấy tên thứ từ currentDay
+  const dayNames = {
+    'mon': 'Thứ hai', 'tue': 'Thứ ba', 'wed': 'Thứ tư', 
+    'thu': 'Thứ năm', 'fri': 'Thứ sáu', 'sat': 'Thứ bảy', 'sun': 'Chủ nhật'
+  };
+  const dayName = dayNames[currentDay] || '';
+  const shownDate = (iso && toDMY(parseISOToDate(iso))) || (results[0] && results[0].date) || '';
+  renderTable(dayName, shownDate, results);
+  status.textContent = results.length ? `Đã tải ${results.length} tỉnh` : 'Không có dữ liệu';
+}
+
+/* ====== Sự kiện ====== */
+// Tự động tải khi thay đổi ngày
+document.getElementById('date').addEventListener('input', handleDateChange);
+document.getElementById('date').addEventListener('blur', handleDateChange);
+
+window.addEventListener('load', loadAll);
+// Khởi động cơ chế auto-refresh khi tải trang
+window.addEventListener('load', function(){
+  manageAutoRefresh();
+});
+
+// ====== Auto refresh trong khung 16:15 - 16:45 nếu đang xem hôm nay ======
+let refreshTimer = null;
+function isInRefreshWindow(){
+  const n = vnNow();
+  const m = n.getHours()*60 + n.getMinutes();
+  return m >= REFRESH_START_MIN && m < RESULT_FINAL_MIN;
+}
+function isViewingToday(){
+  const iso = (document.getElementById('date').value||'').trim();
+  if(!iso) return false;
+  const sel = parseISOToDate(iso);
+  const n = vnNow();
+  const today = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  const selOnly = new Date(sel.getFullYear(), sel.getMonth(), sel.getDate());
+  return selOnly.getTime() === today.getTime();
+}
+function manageAutoRefresh(){
+  if(refreshTimer){
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+  if(isViewingToday() && isInRefreshWindow()){
+    // Refresh ngay lần đầu để cập nhật nhanh
+    loadAll();
+    refreshTimer = setInterval(()=>{
+      if(isViewingToday() && isInRefreshWindow()){
+        loadAll();
+      } else {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+    }, 60000);
+  }
+}
+</script>
+</body>
+</html>
