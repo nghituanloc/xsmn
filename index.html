@@ -91,6 +91,7 @@
     font-size: 22px; 
     font-weight: 700;
     text-align: center;
+    text-align-last: center;
     color: #111;
     padding: 0 10px;
     background-color: #fff;
@@ -447,7 +448,7 @@ function buildTable(dayName, cols){
     {k:'g2',n:'Giải Nhì'},{k:'g1',n:'Giải Nhất'},{k:'db',n:'ĐẶC BIỆT',cls:'db'}
   ];
   if(!cols || cols.length===0){
-    return '<tbody><tr><td style="padding:30px; font-size:18px; line-height:1.5;">Không tải được dữ liệu. Có thể thiết bị đang chặn JavaScript hoặc chặn script từ minhngoc.com.vn. Vui lòng bật JavaScript hoặc cho phép nội dung, sau đó thử lại.</td></tr></tbody>';
+    return '<tbody><tr><td style="padding:24px; font-size:16px; line-height:1.5;">Chưa có dữ liệu, vui lòng thử lại sau.</td></tr></tbody>';
   }
   const thead = `
     <thead>
