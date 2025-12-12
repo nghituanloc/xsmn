@@ -237,7 +237,7 @@
     <div class="nav-bar">
       <button class="btn-arrow" onclick="changeDate(-1)">&#10094;</button>
       <input id="date" type="date" onchange="handleDateChange()" />
-      <button class="btn-arrow" onclick="changeDate(1)">&#10095;</button>
+      <button id="btnNext" class="btn-arrow" onclick="changeDate(1)">&#10095;</button>
     </div>
   </div>
 
@@ -260,6 +260,8 @@
 let deferredPrompt;
 const btnInstall = document.getElementById('btnInstall');
 const btnTop = document.getElementById('btnTop');
+const btnNext = document.getElementById('btnNext');
+let appInstalled = false;
 
 window.addEventListener('beforeinstallprompt', (e) => {
   // Ngăn Chrome hiển thị popup mặc định
@@ -268,6 +270,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
   deferredPrompt = e;
   // Hiện nút cài đặt của mình
   btnInstall.style.display = 'inline-block';
+  refreshNavInstallButton();
 });
 
 btnInstall.addEventListener('click', async () => {
@@ -277,7 +280,15 @@ btnInstall.addEventListener('click', async () => {
     console.log(`User response to the install prompt: ${outcome}`);
     deferredPrompt = null;
     btnInstall.style.display = 'none'; // Ẩn nút sau khi bấm
+    refreshNavInstallButton();
   }
+});
+
+window.addEventListener('appinstalled', () => {
+  appInstalled = true;
+  deferredPrompt = null;
+  btnInstall.style.display = 'none';
+  refreshNavInstallButton();
 });
 
 // --- LOGIC XỔ SỐ (GIỮ NGUYÊN) ---
@@ -317,17 +328,23 @@ let scrollAttached = false;
 let hideTopTimer = null;
 let lastScrollY = 0;
 
-window.addEventListener('load', () => { registerServiceWorker(); resetAndLoad(baseDate); manageAutoRefresh(); setupInfiniteScroll(); });
+window.addEventListener('load', () => { registerServiceWorker(); detectInstalledMode(); resetAndLoad(baseDate); manageAutoRefresh(); setupInfiniteScroll(); });
 
 function registerServiceWorker(){
   if(!('serviceWorker' in navigator)) return;
   navigator.serviceWorker.register('service-worker.js').catch(()=>{});
 }
 
+function detectInstalledMode(){
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if(standalone){ appInstalled = true; }
+}
+
 function updateUI(dateObj) {
   const iso = toISO(dateObj);
   document.getElementById('date').value = iso;
   currentDay = JS_DAY_KEY[dateObj.getDay()];
+  refreshNavInstallButton();
 }
 
 function checkFutureAndAlert(selectedDate) {
@@ -499,6 +516,41 @@ function handleScrollWork(){
   loadMoreIfNeeded();
   toggleScrollTop(currentY, direction);
   lastScrollY = currentY;
+}
+
+function isViewingToday(){
+  const viewingDate = parseISOToDate(document.getElementById('date').value);
+  const now = vnNow();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const viewStart = new Date(viewingDate.getFullYear(), viewingDate.getMonth(), viewingDate.getDate());
+  return viewStart.getTime() === today.getTime();
+}
+
+function refreshNavInstallButton(){
+  if(!btnNext) return;
+  const shouldOfferInstall = !appInstalled && deferredPrompt && isViewingToday();
+  if(shouldOfferInstall){
+    btnNext.textContent = 'Cài app';
+    btnNext.onclick = handleNavInstallClick;
+  }else{
+    btnNext.innerHTML = '&#10095;';
+    btnNext.onclick = () => changeDate(1);
+  }
+}
+
+async function handleNavInstallClick(){
+  if(!deferredPrompt){
+    if(btnInstall) btnInstall.click();
+    return;
+  }
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if(outcome === 'accepted'){
+    appInstalled = true;
+    btnInstall.style.display = 'none';
+  }
+  deferredPrompt = null;
+  refreshNavInstallButton();
 }
 
 function toggleScrollTop(pos, direction){
