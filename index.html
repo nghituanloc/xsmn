@@ -33,6 +33,19 @@
   }
   .wrap{max-width:1400px;margin:0 auto;padding:10px; min-height: 90vh; display: flex; flex-direction: column;}
 
+  .noscript-banner{
+    background:#fff3cd;
+    color:#92400e;
+    border:1px solid #fbbf24;
+    border-radius:10px;
+    padding:12px 14px;
+    margin:10px auto 20px;
+    max-width:1100px;
+    font-weight:700;
+    text-align:center;
+    box-shadow:0 2px 4px rgba(0,0,0,0.08);
+  }
+
   /* --- CONTROL AREA --- */
   .control-area {
     background: #fff;
@@ -192,6 +205,12 @@
 </style>
 </head>
 <body>
+
+<noscript>
+  <div class="noscript-banner">
+    Thiết bị đang chặn JavaScript nên không thể tải kết quả. Vui lòng bật JavaScript hoặc tắt chặn script, rồi tải lại trang.
+  </div>
+</noscript>
 
 <div class="wrap">
   <div class="control-area">
@@ -363,7 +382,7 @@ function loadProvince(slug, dmyDash){
 function renderTable(dayName, dateText, cols){
   const grid = document.getElementById('grid');
   if(!cols || cols.length===0){
-    grid.innerHTML = '<tbody><tr><td style="padding:30px; font-size:20px;">Chưa có dữ liệu...</td></tr></tbody>';
+    grid.innerHTML = '<tbody><tr><td style="padding:30px; font-size:18px; line-height:1.5;">Không tải được dữ liệu. Có thể thiết bị đang chặn JavaScript hoặc chặn script từ minhngoc.com.vn. Vui lòng bật JavaScript hoặc cho phép nội dung, sau đó thử lại.</td></tr></tbody>';
     return;
   }
   const prizes = [
