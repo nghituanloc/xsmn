@@ -108,6 +108,9 @@
     margin-bottom: 30px;
     flex: 1; /* Đẩy footer xuống đáy */
   }
+  .panel + .panel{
+    margin-top:10px;
+  }
   .caption{
     background:var(--red);
     color:#fff;
@@ -118,7 +121,7 @@
     text-transform: uppercase;
   }
 
-  #tableWrap{
+  .tableWrap{
     width: 100%;
     overflow-x: auto; 
     overflow-y: hidden;
@@ -139,11 +142,11 @@
 
   /* Sticky Styles */
   .tbl .prize, .tbl thead th:first-child { 
-    width: 1%; white-space: nowrap; 
+    width: 90px; min-width: 90px; white-space: nowrap; 
     position: sticky; left: 0; 
     background: var(--sticky-bg); 
-    border-right: 3px solid #999; 
-    text-align: center; padding: 15px 5px; font-weight: 800;
+    border-right: 3px solid hsl(0, 96%, 64%); 
+    text-align: center; padding: 12px 6px; font-weight: 800;
     z-index: 40;
   }
   .tbl thead th.province {
@@ -192,6 +195,23 @@
     100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
   }
 
+  .scroll-top{
+    position: fixed;
+    right: 16px;
+    bottom: 80px;
+    background: #255cb4;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+    display: none;
+    z-index: 120;
+  }
+  .scroll-top:active{ transform: translateY(1px); }
+
   @media (max-width: 768px) {
     .wrap { padding: 5px; }
     input[type="date"] { font-size: 20px; }
@@ -200,7 +220,7 @@
     .tbl tbody td:not(.prize) { font-size: 40px !important; letter-spacing: 1px; min-width: 110px; }
     .tbl .g8 { font-size: 45px !important; }
     .tbl .db { font-size: 44px !important; }
-    .tbl .prize, .tbl thead th:first-child { font-size: 15px; padding: 10px 4px; }
+    .tbl .prize, .tbl thead th:first-child { font-size: 15px; padding: 8px 4px; width: 70px; min-width: 70px; }
   }
 </style>
 </head>
@@ -221,15 +241,10 @@
     </div>
   </div>
 
-  <div class="panel">
-    <div class="caption">KẾT QUẢ XỔ SỐ MIỀN NAM</div>
-    <div id="tableWrap">
-      <table class="tbl" id="grid"></table>
-    </div>
-  </div>
+  <div id="panels"></div>
 
   <footer class="main-footer">
-    <button id="btnInstall" class="btn-install">📲 CÀI ỨNG DỤNG</button>
+    <button id="btnInstall" class="btn-install">CÀI ỨNG DỤNG</button>
     <div class="copyright">
       Phát triển bởi <b>Loc</b> &copy; 2025
     </div>
@@ -238,10 +253,13 @@
   <div id="scratch"></div>
 </div>
 
+<button id="btnTop" class="scroll-top" aria-label="Lên đầu trang">^</button>
+
 <script>
 // --- LOGIC CÀI APP (PWA) ---
 let deferredPrompt;
 const btnInstall = document.getElementById('btnInstall');
+const btnTop = document.getElementById('btnTop');
 
 window.addEventListener('beforeinstallprompt', (e) => {
   // Ngăn Chrome hiển thị popup mặc định
@@ -273,7 +291,7 @@ const DAY_MAP = {
   sun:[{n:'Tiền Giang',s:'tien-giang'},{n:'Kiên Giang',s:'kien-giang'},{n:'Đà Lạt',s:'da-lat'}]
 };
 const JS_DAY_KEY = ['sun','mon','tue','wed','thu','fri','sat'];
-const DAY_NAMES_VI = ['CHỦ NHẬT', 'THỨ HAI', 'THỨ BA', 'THỨ TƯ', 'THỨ NĂM', 'THỨ SÁU', 'THỨ BẢY'];
+const DAY_NAMES_VI = ['CHỦ NHẬT', 'THỨ 2', 'THỨ 3', 'THỨ 4', 'THỨ 5', 'THỨ 6', 'THỨ 7'];
 
 const REFRESH_START_MIN = 16*60 + 15; 
 const RESULT_FINAL_MIN = 16*60 + 45;
@@ -292,7 +310,19 @@ if((now.getHours()*60 + now.getMinutes()) < REFRESH_START_MIN){
 }
 let currentDay = JS_DAY_KEY[baseDate.getDay()];
 
-window.addEventListener('load', () => { updateUI(baseDate); loadAll(); manageAutoRefresh(); });
+let loadedDates = new Set();
+let nextDate = null;
+let isLoadingMore = false;
+let scrollAttached = false;
+let hideTopTimer = null;
+let lastScrollY = 0;
+
+window.addEventListener('load', () => { registerServiceWorker(); resetAndLoad(baseDate); manageAutoRefresh(); setupInfiniteScroll(); });
+
+function registerServiceWorker(){
+  if(!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+}
 
 function updateUI(dateObj) {
   const iso = toISO(dateObj);
@@ -319,8 +349,8 @@ function changeDate(offset) {
   const d = parseISOToDate(input.value);
   d.setDate(d.getDate() + offset);
   if(checkFutureAndAlert(d)) return;
-  updateUI(d); 
-  loadAll();
+  resetAndLoad(d);
+  manageAutoRefresh();
 }
 
 function handleDateChange() {
@@ -331,23 +361,20 @@ function handleDateChange() {
     updateUI(vnNow());
     return;
   }
-  updateUI(d); 
-  loadAll();
+  resetAndLoad(d);
+  manageAutoRefresh();
 }
 
-async function loadAll(){
-  const iso = document.getElementById('date').value;
-  const dash = isoToDmyDash(iso);
-  $('#scratch').empty();
-  const list = DAY_MAP[currentDay] || [];
-  const results = [];
-  for (const p of list){
-    const data = await loadProvince(p.s, dash);
-    if(data) results.push(data);
-  }
-  const dayName = DAY_NAMES_VI[JS_DAY_KEY.indexOf(currentDay)];
-  const shownDate = (iso && toDMY(parseISOToDate(iso))) || '';
-  renderTable(dayName, shownDate, results);
+async function resetAndLoad(dateObj){
+  const panels = document.getElementById('panels');
+  panels.innerHTML = '';
+  loadedDates = new Set();
+  const normalized = new Date(dateObj);
+  baseDate = normalized;
+  updateUI(baseDate);
+  await appendDay(baseDate);
+  nextDate = new Date(baseDate);
+  nextDate.setDate(nextDate.getDate()-1);
 }
 
 function loadProvince(slug, dmyDash){
@@ -379,17 +406,31 @@ function loadProvince(slug, dmyDash){
   });
 }
 
-function renderTable(dayName, dateText, cols){
-  const grid = document.getElementById('grid');
-  if(!cols || cols.length===0){
-    grid.innerHTML = '<tbody><tr><td style="padding:30px; font-size:18px; line-height:1.5;">Không tải được dữ liệu. Có thể thiết bị đang chặn JavaScript hoặc chặn script từ minhngoc.com.vn. Vui lòng bật JavaScript hoặc cho phép nội dung, sau đó thử lại.</td></tr></tbody>';
-    return;
+async function fetchDayData(dateObj){
+  const iso = toISO(dateObj);
+  const dash = isoToDmyDash(iso);
+  const dayKey = JS_DAY_KEY[dateObj.getDay()];
+  const list = DAY_MAP[dayKey] || [];
+  $('#scratch').empty();
+  const results = [];
+  for (const p of list){
+    const data = await loadProvince(p.s, dash);
+    if(data) results.push(data);
   }
+  const dayName = DAY_NAMES_VI[JS_DAY_KEY.indexOf(dayKey)];
+  const shownDate = (iso && toDMY(parseISOToDate(iso))) || '';
+  return {iso, dayName, shownDate, results};
+}
+
+function buildTable(dayName, cols){
   const prizes = [
-    {k:'g8',n:'Giải Tám',cls:'g8'},{k:'g7',n:'Giải Bảy'},{k:'g6',n:'Giải Sáu'},
-    {k:'g5',n:'Giải Năm'},{k:'g4',n:'Giải Tư'},{k:'g3',n:'Giải Ba'},
+    {k:'g8',n:'Giải 8',cls:'g8'},{k:'g7',n:'Giải 7'},{k:'g6',n:'Giải 6'},
+    {k:'g5',n:'Giải 5'},{k:'g4',n:'Giải 4'},{k:'g3',n:'Giải 3'},
     {k:'g2',n:'Giải Nhì'},{k:'g1',n:'Giải Nhất'},{k:'db',n:'ĐẶC BIỆT',cls:'db'}
   ];
+  if(!cols || cols.length===0){
+    return '<tbody><tr><td style="padding:30px; font-size:18px; line-height:1.5;">Không tải được dữ liệu. Có thể thiết bị đang chặn JavaScript hoặc chặn script từ minhngoc.com.vn. Vui lòng bật JavaScript hoặc cho phép nội dung, sau đó thử lại.</td></tr></tbody>';
+  }
   const thead = `
     <thead>
       <tr>
@@ -398,7 +439,110 @@ function renderTable(dayName, dateText, cols){
       </tr>
     </thead>`;
   const tbody = `<tbody>${prizes.map(p=>`<tr><td class="prize">${p.n}</td>${cols.map(c=>`<td class="${p.cls||''}">${c[p.k]||''}</td>`).join('')}</tr>`).join('')}</tbody>`;
-  grid.innerHTML = thead + tbody;
+  return thead + tbody;
+}
+
+function renderPanel({iso, dayName, shownDate, tableHtml}){
+  return `
+    <div class="panel" data-iso="${iso}">
+      <div class="caption">${dayName} - ${shownDate}</div>
+      <div class="tableWrap">
+        <table class="tbl">${tableHtml}</table>
+      </div>
+    </div>
+  `;
+}
+
+async function appendDay(dateObj){
+  const iso = toISO(dateObj);
+  if(loadedDates.has(iso)) return;
+  loadedDates.add(iso);
+  const data = await fetchDayData(dateObj);
+  const tableHtml = buildTable(data.dayName, data.results);
+  const panelHtml = renderPanel({iso: data.iso, dayName: data.dayName, shownDate: data.shownDate, tableHtml});
+  document.getElementById('panels').insertAdjacentHTML('beforeend', panelHtml);
+}
+
+async function reloadDay(dateObj){
+  const iso = toISO(dateObj);
+  const panel = document.querySelector(`.panel[data-iso="${iso}"]`);
+  if(!panel){
+    await appendDay(dateObj);
+    return;
+  }
+  const data = await fetchDayData(dateObj);
+  panel.querySelector('.caption').textContent = `${data.dayName} - ${data.shownDate}`;
+  panel.querySelector('.tableWrap').innerHTML = `<table class="tbl">${buildTable(data.dayName, data.results)}</table>`;
+}
+
+function setupInfiniteScroll(){
+  if(scrollAttached) return;
+  scrollAttached = true;
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      ticking = false;
+      handleScrollWork();
+    });
+  });
+}
+
+btnTop.addEventListener('click', () => {
+  window.scrollTo({top:0, behavior:'smooth'});
+});
+
+function handleScrollWork(){
+  const currentY = window.scrollY;
+  const direction = currentY > lastScrollY ? 'down' : 'up';
+  loadMoreIfNeeded();
+  toggleScrollTop(currentY, direction);
+  lastScrollY = currentY;
+}
+
+function toggleScrollTop(pos, direction){
+  if(!btnTop) return;
+  const beyondThreshold = pos > 300;
+  if(!beyondThreshold || direction === 'up'){
+    hideTopButton();
+    return;
+  }
+  showTopButton();
+}
+
+function showTopButton(){
+  btnTop.style.display = 'block';
+  resetHideTopTimer();
+}
+
+function hideTopButton(){
+  btnTop.style.display = 'none';
+  if(hideTopTimer){
+    clearTimeout(hideTopTimer);
+    hideTopTimer = null;
+  }
+}
+
+function resetHideTopTimer(){
+  if(hideTopTimer){
+    clearTimeout(hideTopTimer);
+  }
+  hideTopTimer = setTimeout(()=>hideTopButton(), 2000);
+}
+
+async function loadMoreIfNeeded(){
+  if(isLoadingMore || !nextDate) return;
+  const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 200;
+  if(!nearBottom) return;
+  isLoadingMore = true;
+  const targetDate = new Date(nextDate);
+  nextDate.setDate(nextDate.getDate()-1);
+  try{
+    await appendDay(targetDate);
+  }finally{
+    isLoadingMore = false;
+  }
 }
 
 let refreshTimer = null;
@@ -409,7 +553,7 @@ function manageAutoRefresh(){
   const viewingDate = parseISOToDate(document.getElementById('date').value);
   const today = new Date(n.getFullYear(), n.getMonth(), n.getDate());
   if(viewingDate.getTime() === today.getTime() && m >= REFRESH_START_MIN && m < RESULT_FINAL_MIN){
-    refreshTimer = setInterval(loadAll, 60000);
+    refreshTimer = setInterval(()=>reloadDay(baseDate), 60000);
   }
 }
 </script>
