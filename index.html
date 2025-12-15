@@ -648,9 +648,22 @@ async function loadRealtimeData(){
     script.onload = ()=>{
       document.body.removeChild(script);
       if(window.kqxs && window.kqxs.mn){
-        updateRealtimeResults(window.kqxs.mn);
+        const data = window.kqxs.mn;
+        
+        // Kiểm tra xem còn đang trực tiếp không
+        if(data.run === 0 || !data.kq){
+          // Đã hết trực tiếp, dừng realtime và load kết quả đầy đủ
+          if(realtimeTimer) clearTimeout(realtimeTimer);
+          realtimeTimer = null;
+          console.log('Da het thoi gian truc tiep, dang tai ket qua day du...');
+          reloadDay(baseDate);
+          return;
+        }
+        
+        // Còn đang trực tiếp, cập nhật kết quả
+        updateRealtimeResults(data);
         // Dùng delay từ API, mặc định 3000ms
-        const delay = window.kqxs.mn.delay || 3000;
+        const delay = data.delay || 3000;
         realtimeTimer = setTimeout(loadRealtimeData, delay);
       }else{
         // Nếu không có dữ liệu, thử lại sau 5 giây
