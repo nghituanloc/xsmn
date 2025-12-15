@@ -329,6 +329,8 @@ let isLoadingMore = false;
 let scrollAttached = false;
 let hideTopTimer = null;
 let lastScrollY = 0;
+let realtimeCounter = 0;
+let realtimeTimer = null;
 
 window.addEventListener('load', () => { registerServiceWorker(); detectInstalledMode(); resetAndLoad(baseDate); manageAutoRefresh(); setupInfiniteScroll(); });
 
@@ -602,13 +604,126 @@ async function loadMoreIfNeeded(){
 let refreshTimer = null;
 function manageAutoRefresh(){
   if(refreshTimer) clearInterval(refreshTimer);
+  if(realtimeTimer) clearInterval(realtimeTimer);
+  
   const n = vnNow();
   const m = n.getHours()*60 + n.getMinutes();
   const viewingDate = parseISOToDate(document.getElementById('date').value);
   const today = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  
   if(viewingDate.getTime() === today.getTime() && m >= REFRESH_START_MIN && m < RESULT_FINAL_MIN){
-    refreshTimer = setInterval(()=>reloadDay(baseDate), 60000);
+    // Trong khoảng 16h15 - 16h40, dùng realtime API
+    const REALTIME_END = 16*60 + 40;
+    if(m < REALTIME_END){
+      startRealtimeUpdates();
+    }else{
+      // Sau 16h40, dùng reload bình thường
+      refreshTimer = setInterval(()=>reloadDay(baseDate), 60000);
+    }
   }
+}
+
+function startRealtimeUpdates(){
+  realtimeCounter = 0;
+  loadRealtimeData(); // Gọi ngay lần đầu
+}
+
+async function loadRealtimeData(){
+  if(realtimeTimer) clearInterval(realtimeTimer);
+  
+  realtimeCounter++;
+  const url = `https://dc.minhngoc.net/O0O/0/xstt/js_m1.js?_=${realtimeCounter}`;
+  
+  try{
+    // Reset global object
+    window.kqxs = undefined;
+    
+    const script = document.createElement('script');
+    script.src = url;
+    script.onerror = ()=>{
+      // Nếu lỗi, thử lại sau 5 giây
+      document.body.removeChild(script);
+      realtimeTimer = setTimeout(loadRealtimeData, 5000);
+    };
+    script.onload = ()=>{
+      document.body.removeChild(script);
+      if(window.kqxs && window.kqxs.mn){
+        updateRealtimeResults(window.kqxs.mn);
+        // Dùng delay từ API, mặc định 3000ms
+        const delay = window.kqxs.mn.delay || 3000;
+        realtimeTimer = setTimeout(loadRealtimeData, delay);
+      }else{
+        // Nếu không có dữ liệu, thử lại sau 5 giây
+        realtimeTimer = setTimeout(loadRealtimeData, 5000);
+      }
+    };
+    document.body.appendChild(script);
+  }catch(e){
+    // Nếu lỗi, thử lại sau 5 giây
+    realtimeTimer = setTimeout(loadRealtimeData, 5000);
+  }
+}
+
+function updateRealtimeResults(data){
+  if(!data || !data.kq) return;
+  
+  const iso = toISO(baseDate);
+  const panel = document.querySelector(`.panel[data-iso="${iso}"]`);
+  if(!panel) return;
+  
+  // Lấy danh sách tỉnh trong ngày
+  const dayKey = JS_DAY_KEY[baseDate.getDay()];
+  const provinceList = DAY_MAP[dayKey] || [];
+  if(provinceList.length === 0) return;
+  
+  // Map từ index (1,2,3) sang tên tỉnh
+  const tinhArray = data.tinh ? data.tinh.split(',') : [];
+  
+  // Cập nhật từng ô kết quả
+  tinhArray.forEach((tinhIdx, arrayPos)=>{
+    const idx = parseInt(tinhIdx);
+    if(!data.kq[idx]) return;
+    
+    const provinceData = data.kq[idx];
+    const colIndex = arrayPos; // Cột trong bảng (0,1,2,...)
+    
+    // Map giải từ API sang row trong bảng
+    const prizeMap = [
+      {api:'8', row:0, cls:'g8'},
+      {api:'7', row:1, cls:''},
+      {api:'6', row:2, cls:''},
+      {api:'5', row:3, cls:''},
+      {api:'4', row:4, cls:''},
+      {api:'3', row:5, cls:''},
+      {api:'2', row:6, cls:''},
+      {api:'1', row:7, cls:''},
+      {api:'0', row:8, cls:'db'}
+    ];
+    
+    prizeMap.forEach(prize=>{
+      const cell = panel.querySelector(`tbody tr:nth-child(${prize.row+1}) td:nth-child(${colIndex+2})`);
+      if(!cell) return;
+      
+      let value = provinceData[prize.api];
+      if(!value) return;
+      
+      // Xử lý dữ liệu
+      if(Array.isArray(value)){
+        // Giải 6 và 4 có nhiều giá trị
+        value = value.join('<br>');
+      }else if(typeof value === 'string'){
+        // Giữ nguyên các dấu + và *
+        if(value.includes('+')){
+          value = value; // Đang quay
+        }else if(value.includes('*')){
+          value = value; // Chưa quay
+        }
+      }
+      
+      // Cập nhật nội dung
+      cell.innerHTML = value;
+    });
+  });
 }
 </script>
 </body>
