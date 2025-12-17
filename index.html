@@ -82,6 +82,12 @@
     touch-action: manipulation;
   }
   .btn-arrow:active { background: #e5e7eb; transform: scale(0.95); }
+  .btn-arrow:disabled{
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    background: #f9fafb;
+  }
 
   input[type="date"] {
     appearance: none;
@@ -351,10 +357,28 @@ function updateUI(dateObj) {
   refreshNavInstallButton();
 }
 
+function isNextBlocked(){
+  if(!btnNext) return false;
+  const input = document.getElementById('date');
+  if(!input || !input.value) return false;
+  const current = vnNow();
+  const todayStart = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+  const viewing = parseISOToDate(input.value);
+  const target = new Date(viewing);
+  target.setDate(target.getDate()+1);
+  const targetStart = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const currentMinutes = current.getHours()*60 + current.getMinutes();
+
+  if(targetStart.getTime() > todayStart.getTime()) return true; // Ngày tương lai
+  if(targetStart.getTime() === todayStart.getTime() && currentMinutes < REFRESH_START_MIN) return true; // Hôm nay nhưng chưa tới giờ quay
+  return false;
+}
+
 function checkFutureAndAlert(selectedDate) {
   const current = vnNow();
   const todayStart = new Date(current.getFullYear(), current.getMonth(), current.getDate());
   const selectedStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+  const currentMinutes = current.getHours() * 60 + current.getMinutes();
 
   if (selectedStart > todayStart) {
     const diffTime = selectedStart - todayStart;
@@ -365,12 +389,29 @@ function checkFutureAndAlert(selectedDate) {
   return false; 
 }
 
+function normalizeBeforeDraw(dateObj){
+  const current = vnNow();
+  const todayStart = new Date(current.getFullYear(), current.getMonth(), current.getDate());
+  const selectedStart = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+  const currentMinutes = current.getHours()*60 + current.getMinutes();
+
+  if (selectedStart.getTime() === todayStart.getTime() && currentMinutes < REFRESH_START_MIN) {
+    // Trước giờ quay: chuyển sang ngày hôm qua để tránh lấy nhầm dữ liệu tuần trước
+    const yesterday = new Date(todayStart);
+    yesterday.setDate(yesterday.getDate()-1);
+    alert(`Chưa đến giờ quay số của ngày ${toDMY(dateObj)}`);
+    return { normalized: yesterday, redirected: true };
+  }
+  return { normalized: dateObj, redirected: false };
+}
+
 function changeDate(offset) {
   const input = document.getElementById('date');
   const d = parseISOToDate(input.value);
   d.setDate(d.getDate() + offset);
   if(checkFutureAndAlert(d)) return;
-  resetAndLoad(d);
+  const { normalized } = normalizeBeforeDraw(d);
+  resetAndLoad(normalized);
   manageAutoRefresh();
 }
 
@@ -379,10 +420,12 @@ function handleDateChange() {
   if(!input.value) return;
   const d = parseISOToDate(input.value);
   if(checkFutureAndAlert(d)) {
-    updateUI(vnNow());
+    // Giữ nguyên ngày đang xem (baseDate), tránh nhảy sang hôm nay khi chưa có kết quả
+    updateUI(baseDate);
     return;
   }
-  resetAndLoad(d);
+  const { normalized } = normalizeBeforeDraw(d);
+  resetAndLoad(normalized);
   manageAutoRefresh();
 }
 
@@ -530,16 +573,31 @@ function isViewingToday(){
   return viewStart.getTime() === today.getTime();
 }
 
+function isViewingYesterday(){
+  const viewingDate = parseISOToDate(document.getElementById('date').value);
+  const now = vnNow();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate()-1);
+  const viewStart = new Date(viewingDate.getFullYear(), viewingDate.getMonth(), viewingDate.getDate());
+  return viewStart.getTime() === yesterday.getTime();
+}
+
 function refreshNavInstallButton(){
   if(!btnNext) return;
-  const shouldOfferInstall = !appInstalled && deferredPrompt && isViewingToday();
+  const shouldOfferInstall = !appInstalled && deferredPrompt && (isViewingToday() || isViewingYesterday());
+  const nextBlocked = isNextBlocked();
+
   if(shouldOfferInstall){
     btnNext.textContent = 'Cài app';
+    btnNext.disabled = false;
     btnNext.onclick = handleNavInstallClick;
-  }else{
-    btnNext.innerHTML = '&#10095;';
-    btnNext.onclick = () => changeDate(1);
+    return;
   }
+
+  btnNext.innerHTML = '&#10095;';
+  btnNext.disabled = nextBlocked;
+  btnNext.onclick = nextBlocked ? null : () => changeDate(1);
 }
 
 async function handleNavInstallClick(){
