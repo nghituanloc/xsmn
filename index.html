@@ -183,26 +183,6 @@
   }
   .copyright b { color: #333; }
   
-  .btn-install {
-    display: none; /* Mặc định ẩn, hiện khi trình duyệt cho phép */
-    background-color: #16a34a; /* Màu xanh lá dễ chịu */
-    color: white;
-    font-size: 18px;
-    font-weight: bold;
-    padding: 12px 25px;
-    border: none;
-    border-radius: 50px;
-    margin-bottom: 15px;
-    cursor: pointer;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-    animation: pulse 2s infinite;
-  }
-  @keyframes pulse {
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
-    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(22, 163, 74, 0); }
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
-  }
-
   .scroll-top{
     position: fixed;
     right: 16px;
@@ -252,7 +232,6 @@
   <div id="panels"></div>
 
   <footer class="main-footer">
-    <button id="btnInstall" class="btn-install">CÀI ỨNG DỤNG</button>
     <div class="copyright">
       Phát triển bởi <b>Loc</b> &copy; 2025
     </div>
@@ -266,7 +245,6 @@
 <script>
 // --- LOGIC CÀI APP (PWA) ---
 let deferredPrompt;
-const btnInstall = document.getElementById('btnInstall');
 const btnTop = document.getElementById('btnTop');
 const btnNext = document.getElementById('btnNext');
 let appInstalled = false;
@@ -276,26 +254,12 @@ window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   // Lưu sự kiện để dùng sau
   deferredPrompt = e;
-  // Hiện nút cài đặt của mình
-  btnInstall.style.display = 'inline-block';
   refreshNavInstallButton();
-});
-
-btnInstall.addEventListener('click', async () => {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    console.log(`User response to the install prompt: ${outcome}`);
-    deferredPrompt = null;
-    btnInstall.style.display = 'none'; // Ẩn nút sau khi bấm
-    refreshNavInstallButton();
-  }
 });
 
 window.addEventListener('appinstalled', () => {
   appInstalled = true;
   deferredPrompt = null;
-  btnInstall.style.display = 'none';
   refreshNavInstallButton();
 });
 
@@ -591,1013 +555,221 @@ function isViewingYesterday(){
 
 function refreshNavInstallButton(){
   if(!btnNext) return;
-  const canInstall = !appInstalled && !!deferredPrompt;
-  const nextBlocked = isNextBlocked();
-  const shouldOfferInstall = canInstall && (isViewingToday() || isViewingYesterday());
-  const shouldForceInstall = canInstall && isViewingYesterday() && nextBlocked;
-
-  if(shouldOfferInstall || shouldForceInstall){
-    btnNext.textContent = 'Cài app';
-    btnNext.disabled = false;
-    btnNext.onclick = handleNavInstallClick;
-    if(btnInstall) btnInstall.style.display = 'inline-block';
-    return;
-  }
-
-  btnNext.innerHTML = '&#10095;';
-  btnNext.disabled = nextBlocked;
-  btnNext.onclick = nextBlocked ? null : () => changeDate(1);
-}
-
-async function handleNavInstallClick(){
-  if(!deferredPrompt){
-    alert('Trình duyệt chưa sẵn sàng hiện cửa sổ cài đặt. Hãy thử lại sau hoặc dùng Chrome/Edge.');
-    if(btnInstall) btnInstall.click();
-    return;
-  }
-  deferredPrompt.prompt();
-  const { outcome } = await deferredPrompt.userChoice;
-  if(outcome === 'accepted'){
-    appInstalled = true;
-    btnInstall.style.display = 'none';
-  }
-  deferredPrompt = null;
-  refreshNavInstallButton();
-}
-
-function toggleScrollTop(pos, direction){
-  if(!btnTop) return;
-  const beyondThreshold = pos > 300;
-  if(!beyondThreshold || direction === 'up'){
-    hideTopButton();
-    return;
-  }
-  showTopButton();
-}
-
-function showTopButton(){
-  btnTop.style.display = 'block';
-  resetHideTopTimer();
-}
-
-function hideTopButton(){
-  btnTop.style.display = 'none';
-  if(hideTopTimer){
-    clearTimeout(hideTopTimer);
-    hideTopTimer = null;
-  }
-}
-
-function resetHideTopTimer(){
-  if(hideTopTimer){
-    clearTimeout(hideTopTimer);
-  }
-  hideTopTimer = setTimeout(()=>hideTopButton(), 2000);
-}
-
-async function loadMoreIfNeeded(){
-  if(isLoadingMore || !nextDate) return;
-  const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 200;
-  if(!nearBottom) return;
-  isLoadingMore = true;
-  const targetDate = new Date(nextDate);
-  nextDate.setDate(nextDate.getDate()-1);
-  try{
-    await appendDay(targetDate);
-  }finally{
-    isLoadingMore = false;
-  }
-}
-
-let refreshTimer = null;
-function manageAutoRefresh(){
-  if(refreshTimer) clearInterval(refreshTimer);
-  if(realtimeTimer) clearInterval(realtimeTimer);
-  
-  const n = vnNow();
-  const m = n.getHours()*60 + n.getMinutes();
-  const viewingDate = parseISOToDate(document.getElementById('date').value);
-  const today = new Date(n.getFullYear(), n.getMonth(), n.getDate());
-  
-  if(viewingDate.getTime() === today.getTime() && m >= REFRESH_START_MIN && m < RESULT_FINAL_MIN){
-    // Trong khoảng 16h15 - 16h40, dùng realtime API
-    const REALTIME_END = 16*60 + 40;
-    if(m < REALTIME_END){
-      startRealtimeUpdates();
-    }else{
-      // Sau 16h40, dùng reload bình thường
-      refreshTimer = setInterval(()=>reloadDay(baseDate), 60000);
-    }
-  }
-}
-
-function startRealtimeUpdates(){
-  realtimeCounter = 0;
-  loadRealtimeData(); // Gọi ngay lần đầu
-}
-
-async function loadRealtimeData(){
-  if(realtimeTimer) clearInterval(realtimeTimer);
-  
-  realtimeCounter++;
-  const url = `https://dc.minhngoc.net/O0O/0/xstt/js_m1.js?_=${realtimeCounter}`;
-  
-  try{
-    // Reset global object
-    window.kqxs = undefined;
-    
-    const script = document.createElement('script');
-    script.src = url;
-    script.onerror = ()=>{
-      // Nếu lỗi, thử lại sau 5 giây
-      document.body.removeChild(script);
-      realtimeTimer = setTimeout(loadRealtimeData, 5000);
-    };
-    script.onload = ()=>{
-      document.body.removeChild(script);
-      if(window.kqxs && window.kqxs.mn){
-        const data = window.kqxs.mn;
-        
-        // Kiểm tra xem còn đang trực tiếp không
-        if(data.run === 0 || !data.kq){
-          // Đã hết trực tiếp, dừng realtime và load kết quả đầy đủ
-          if(realtimeTimer) clearTimeout(realtimeTimer);
-          realtimeTimer = null;
-          console.log('Da het thoi gian truc tiep, dang tai ket qua day du...');
-          reloadDay(baseDate);
-          return;
-        }
-        
-        // Còn đang trực tiếp, cập nhật kết quả
-        updateRealtimeResults(data);
-        // Dùng delay từ API, mặc định 3000ms
-        const delay = data.delay || 3000;
-        realtimeTimer = setTimeout(loadRealtimeData, delay);
-      }else{
-        // Nếu không có dữ liệu, thử lại sau 5 giây
-        realtimeTimer = setTimeout(loadRealtimeData, 5000);
-      }
-    };
-    document.body.appendChild(script);
-  }catch(e){
-    // Nếu lỗi, thử lại sau 5 giây
-    realtimeTimer = setTimeout(loadRealtimeData, 5000);
-  }
-}
-
-function updateRealtimeResults(data){
-  if(!data || !data.kq) return;
-  
-  const iso = toISO(baseDate);
-  const panel = document.querySelector(`.panel[data-iso="${iso}"]`);
-  if(!panel) return;
-  
-  // Lấy danh sách tỉnh trong ngày
-  const dayKey = JS_DAY_KEY[baseDate.getDay()];
-  const provinceList = DAY_MAP[dayKey] || [];
-  if(provinceList.length === 0) return;
-  
-  // Map từ index (1,2,3) sang tên tỉnh
-  const tinhArray = data.tinh ? data.tinh.split(',') : [];
-  
-  // Cập nhật từng ô kết quả
-  tinhArray.forEach((tinhIdx, arrayPos)=>{
-    const idx = parseInt(tinhIdx);
-    if(!data.kq[idx]) return;
-    
-    const provinceData = data.kq[idx];
-    const colIndex = arrayPos; // Cột trong bảng (0,1,2,...)
-    
-    // Map giải từ API sang row trong bảng
-    const prizeMap = [
-      {api:'8', row:0, cls:'g8'},
-      {api:'7', row:1, cls:''},
-      {api:'6', row:2, cls:''},
-      {api:'5', row:3, cls:''},
-      {api:'4', row:4, cls:''},
-      {api:'3', row:5, cls:''},
-      {api:'2', row:6, cls:''},
-      {api:'1', row:7, cls:''},
-      {api:'0', row:8, cls:'db'}
-    ];
-    
-    prizeMap.forEach(prize=>{
-      const cell = panel.querySelector(`tbody tr:nth-child(${prize.row+1}) td:nth-child(${colIndex+2})`);
-      if(!cell) return;
-      
-      let value = provinceData[prize.api];
-      if(!value) return;
-      
-      // Xử lý dữ liệu
-      if(Array.isArray(value)){
-        // Giải 6 và 4 có nhiều giá trị
-        value = value.join('<br>');
-      }else if(typeof value === 'string'){
-        // Giữ nguyên các dấu + và *
-        if(value.includes('+')){
-          value = value; // Đang quay
-        }else if(value.includes('*')){
-          value = value; // Chưa quay
-        }
-      }
-      
-      // Cập nhật nội dung
-      cell.innerHTML = value;
-    });
-  });
-}
-</script>
-</body>
-</html>
-
-
-  const d = parseISOToDate(input.value);
-
-  d.setDate(d.getDate() + offset);
-
-  if(checkFutureAndAlert(d)) return;
-
-  const { normalized } = normalizeBeforeDraw(d);
-
-  resetAndLoad(normalized);
-
-  manageAutoRefresh();
-
-}
-
-
-
-function handleDateChange() {
-
-  const input = document.getElementById('date');
-
-  if(!input.value) return;
-
-  const d = parseISOToDate(input.value);
-
-  if(checkFutureAndAlert(d)) {
-
-    // Giữ nguyên ngày đang xem (baseDate), tránh nhảy sang hôm nay khi chưa có kết quả
-
-    updateUI(baseDate);
-
-    return;
-
-  }
-
-  const { normalized } = normalizeBeforeDraw(d);
-
-  resetAndLoad(normalized);
-
-  manageAutoRefresh();
-
-}
-
-
-
-async function resetAndLoad(dateObj){
-
-  const panels = document.getElementById('panels');
-
-  panels.innerHTML = '';
-
-  loadedDates = new Set();
-
-  const normalized = new Date(dateObj);
-
-  baseDate = normalized;
-
-  updateUI(baseDate);
-
-  await appendDay(baseDate);
-
-  nextDate = new Date(baseDate);
-
-  nextDate.setDate(nextDate.getDate()-1);
-
-}
-
-
-
-function loadProvince(slug, dmyDash){
-
-  return new Promise(resolve=>{
-
-    const scratch = document.getElementById('scratch');
-
-    scratch.id = 'box_kqxs_minhngoc';
-
-    const s = document.createElement('script');
-
-    s.src = dmyDash ? `https://www.minhngoc.com.vn/getkqxs/${slug}/${dmyDash}.js` : `https://www.minhngoc.com.vn/getkqxs/${slug}.js`;
-
-    s.onerror = ()=>{ document.getElementById('box_kqxs_minhngoc').id = 'scratch'; resolve(null); };
-
-    s.onload = ()=>{
-
-      const holder = document.getElementById('box_kqxs_minhngoc');
-
-      holder.id = 'scratch';
-
-      const $box = $('#scratch').find('.box_kqxs_mini').last();
-
-      if($box.length===0){ resolve(null); return; }
-
-      const title = $box.find('.title').text().trim();
-
-      const m = title.match(/KQXS\s+(.+?)\s+(\d{2}\/\d{2}\/\d{4})/i);
-
-      const province = m ? m[1] : slug;
-
-      const dateText = m ? m[2] : '';
-
-      function pick(sel){ return ($box.find(sel).first().text()||'').replace(/\s+/g,' ').trim(); }
-
-      function prettify(s){ return s ? s.split('-').map(x=>x.trim()).join('<br>') : ''; }
-
-      resolve({
-
-        province, date: dateText,
-
-        g8: prettify(pick('.giai8')), g7: prettify(pick('.giai7')), g6: prettify(pick('.giai6')),
-
-        g5: prettify(pick('.giai5')), g4: prettify(pick('.giai4')), g3: prettify(pick('.giai3')),
-
-        g2: prettify(pick('.giai2')), g1: prettify(pick('.giai1')), db: prettify(pick('.giaidb'))
-
-      });
-
-    };
-
-    document.body.appendChild(s);
-
-  });
-
-}
-
-
-
-async function fetchDayData(dateObj){
-
-  const iso = toISO(dateObj);
-
-  const dash = isoToDmyDash(iso);
-
-  const dayKey = JS_DAY_KEY[dateObj.getDay()];
-
-  const list = DAY_MAP[dayKey] || [];
-
-  $('#scratch').empty();
-
-  const results = [];
-
-  for (const p of list){
-
-    const data = await loadProvince(p.s, dash);
-
-    if(data) results.push(data);
-
-  }
-
-  const dayName = DAY_NAMES_VI[JS_DAY_KEY.indexOf(dayKey)];
-
-  const shownDate = (iso && toDMY(parseISOToDate(iso))) || '';
-
-  return {iso, dayName, shownDate, results};
-
-}
-
-
-
-function buildTable(dayName, cols){
-
-  const prizes = [
-
-    {k:'g8',n:'Giải 8',cls:'g8'},{k:'g7',n:'Giải 7'},{k:'g6',n:'Giải 6'},
-
-    {k:'g5',n:'Giải 5'},{k:'g4',n:'Giải 4'},{k:'g3',n:'Giải 3'},
-
-    {k:'g2',n:'Giải Nhì'},{k:'g1',n:'Giải Nhất'},{k:'db',n:'ĐẶC BIỆT',cls:'db'}
-
-  ];
-
-  if(!cols || cols.length===0){
-
-    return '<tbody><tr><td style="padding:24px; font-size:16px; line-height:1.5;">Chưa có dữ liệu, vui lòng thử lại sau.</td></tr></tbody>';
-
-  }
-
-  const thead = `
-
-    <thead>
-
-      <tr>
-
-        <th class="province">${dayName}</th>
-
-        ${cols.map(c=>`<th class="province">${c.province}</th>`).join('')}
-
-      </tr>
-
-    </thead>`;
-
-  const tbody = `<tbody>${prizes.map(p=>`<tr><td class="prize">${p.n}</td>${cols.map(c=>`<td class="${p.cls||''}">${c[p.k]||''}</td>`).join('')}</tr>`).join('')}</tbody>`;
-
-  return thead + tbody;
-
-}
-
-
-
-function renderPanel({iso, dayName, shownDate, tableHtml}){
-
-  return `
-
-    <div class="panel" data-iso="${iso}">
-
-      <div class="caption">${dayName} - ${shownDate}</div>
-
-      <div class="tableWrap">
-
-        <table class="tbl">${tableHtml}</table>
-
-      </div>
-
-    </div>
-
-  `;
-
-}
-
-
-
-async function appendDay(dateObj){
-
-  if(isTodayBeforeCutoff(dateObj)){
-    const yesterday = new Date(dateObj);
-    yesterday.setDate(yesterday.getDate()-1);
-    return appendDay(yesterday);
-  }
-  const iso = toISO(dateObj);
-
-  if(loadedDates.has(iso)) return;
-
-  loadedDates.add(iso);
-
-  const data = await fetchDayData(dateObj);
-
-  const tableHtml = buildTable(data.dayName, data.results);
-
-  const panelHtml = renderPanel({iso: data.iso, dayName: data.dayName, shownDate: data.shownDate, tableHtml});
-
-  document.getElementById('panels').insertAdjacentHTML('beforeend', panelHtml);
-
-}
-
-
-
-async function reloadDay(dateObj){
-
-  const iso = toISO(dateObj);
-
-  const panel = document.querySelector(`.panel[data-iso="${iso}"]`);
-
-  if(!panel){
-
-    await appendDay(dateObj);
-
-    return;
-
-  }
-
-  const data = await fetchDayData(dateObj);
-
-  panel.querySelector('.caption').textContent = `${data.dayName} - ${data.shownDate}`;
-
-  panel.querySelector('.tableWrap').innerHTML = `<table class="tbl">${buildTable(data.dayName, data.results)}</table>`;
-
-}
-
-
-
-function setupInfiniteScroll(){
-
-  if(scrollAttached) return;
-
-  scrollAttached = true;
-
-  let ticking = false;
-
-  window.addEventListener('scroll', () => {
-
-    if(ticking) return;
-
-    ticking = true;
-
-    requestAnimationFrame(() => {
-
-      ticking = false;
-
-      handleScrollWork();
-
-    });
-
-  });
-
-}
-
-
-
-btnTop.addEventListener('click', () => {
-
-  window.scrollTo({top:0, behavior:'smooth'});
-
-});
-
-
-
-function handleScrollWork(){
-
-  const currentY = window.scrollY;
-
-  const direction = currentY > lastScrollY ? 'down' : 'up';
-
-  loadMoreIfNeeded();
-
-  toggleScrollTop(currentY, direction);
-
-  lastScrollY = currentY;
-
-}
-
-
-
-function isViewingToday(){
-
-  const viewingDate = parseISOToDate(document.getElementById('date').value);
-
   const now = vnNow();
-
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  const viewStart = new Date(viewingDate.getFullYear(), viewingDate.getMonth(), viewingDate.getDate());
-
-  return viewStart.getTime() === today.getTime();
-
-}
-
-
-
-function isViewingYesterday(){
-
-  const viewingDate = parseISOToDate(document.getElementById('date').value);
-
-  const now = vnNow();
-
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  const yesterday = new Date(today);
-
-  yesterday.setDate(yesterday.getDate()-1);
-
-  const viewStart = new Date(viewingDate.getFullYear(), viewingDate.getMonth(), viewingDate.getDate());
-
-  return viewStart.getTime() === yesterday.getTime();
-
-}
-
-
-
-function refreshNavInstallButton(){
-
-  if(!btnNext) return;
-
-  const shouldOfferInstall = !appInstalled && deferredPrompt && (isViewingToday() || isViewingYesterday());
-
+  const currentMinutes = now.getHours()*60 + now.getMinutes();
+  const viewingToday = isViewingToday();
+  const viewingYesterday = isViewingYesterday();
   const nextBlocked = isNextBlocked();
-
-
+  const preCutoffYesterday = viewingYesterday && nextBlocked && currentMinutes < REFRESH_START_MIN;
+  const canOfferInstall = !appInstalled && deferredPrompt;
+  const shouldOfferInstall = canOfferInstall && (viewingToday || viewingYesterday || preCutoffYesterday);
 
   if(shouldOfferInstall){
-
     btnNext.textContent = 'Cài app';
-
     btnNext.disabled = false;
-
     btnNext.onclick = handleNavInstallClick;
-
     return;
-
   }
-
-
 
   btnNext.innerHTML = '&#10095;';
-
   btnNext.disabled = nextBlocked;
-
   btnNext.onclick = nextBlocked ? null : () => changeDate(1);
-
 }
-
-
 
 async function handleNavInstallClick(){
-
   if(!deferredPrompt){
-
-    if(btnInstall) btnInstall.click();
-
     return;
-
   }
-
   deferredPrompt.prompt();
-
   const { outcome } = await deferredPrompt.userChoice;
-
   if(outcome === 'accepted'){
-
     appInstalled = true;
-
-    btnInstall.style.display = 'none';
-
   }
-
   deferredPrompt = null;
-
   refreshNavInstallButton();
-
 }
-
-
 
 function toggleScrollTop(pos, direction){
-
   if(!btnTop) return;
-
   const beyondThreshold = pos > 300;
-
   if(!beyondThreshold || direction === 'up'){
-
     hideTopButton();
-
     return;
-
   }
-
   showTopButton();
-
 }
-
-
 
 function showTopButton(){
-
   btnTop.style.display = 'block';
-
   resetHideTopTimer();
-
 }
-
-
 
 function hideTopButton(){
-
   btnTop.style.display = 'none';
-
   if(hideTopTimer){
-
     clearTimeout(hideTopTimer);
-
     hideTopTimer = null;
-
   }
-
 }
-
-
 
 function resetHideTopTimer(){
-
   if(hideTopTimer){
-
     clearTimeout(hideTopTimer);
-
   }
-
   hideTopTimer = setTimeout(()=>hideTopButton(), 2000);
-
 }
-
-
 
 async function loadMoreIfNeeded(){
-
   if(isLoadingMore || !nextDate) return;
-
   const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 200;
-
   if(!nearBottom) return;
-
   isLoadingMore = true;
-
   const targetDate = new Date(nextDate);
-
   nextDate.setDate(nextDate.getDate()-1);
-
   try{
-
     await appendDay(targetDate);
-
   }finally{
-
     isLoadingMore = false;
-
   }
-
 }
-
-
 
 let refreshTimer = null;
-
 function manageAutoRefresh(){
-
   if(refreshTimer) clearInterval(refreshTimer);
-
   if(realtimeTimer) clearInterval(realtimeTimer);
-
   
-
   const n = vnNow();
-
   const m = n.getHours()*60 + n.getMinutes();
-
   const viewingDate = parseISOToDate(document.getElementById('date').value);
-
   const today = new Date(n.getFullYear(), n.getMonth(), n.getDate());
-
   
-
   if(viewingDate.getTime() === today.getTime() && m >= REFRESH_START_MIN && m < RESULT_FINAL_MIN){
-
     // Trong khoảng 16h15 - 16h40, dùng realtime API
-
     const REALTIME_END = 16*60 + 40;
-
     if(m < REALTIME_END){
-
       startRealtimeUpdates();
-
     }else{
-
       // Sau 16h40, dùng reload bình thường
-
       refreshTimer = setInterval(()=>reloadDay(baseDate), 60000);
-
     }
-
   }
-
 }
-
-
 
 function startRealtimeUpdates(){
-
   realtimeCounter = 0;
-
   loadRealtimeData(); // Gọi ngay lần đầu
-
 }
-
-
 
 async function loadRealtimeData(){
-
   if(realtimeTimer) clearInterval(realtimeTimer);
-
   
-
   realtimeCounter++;
-
   const url = `https://dc.minhngoc.net/O0O/0/xstt/js_m1.js?_=${realtimeCounter}`;
-
   
-
   try{
-
     // Reset global object
-
     window.kqxs = undefined;
-
     
-
     const script = document.createElement('script');
-
     script.src = url;
-
     script.onerror = ()=>{
-
       // Nếu lỗi, thử lại sau 5 giây
-
       document.body.removeChild(script);
-
       realtimeTimer = setTimeout(loadRealtimeData, 5000);
-
     };
-
     script.onload = ()=>{
-
       document.body.removeChild(script);
-
       if(window.kqxs && window.kqxs.mn){
-
         const data = window.kqxs.mn;
-
         
-
         // Kiểm tra xem còn đang trực tiếp không
-
         if(data.run === 0 || !data.kq){
-
           // Đã hết trực tiếp, dừng realtime và load kết quả đầy đủ
-
           if(realtimeTimer) clearTimeout(realtimeTimer);
-
           realtimeTimer = null;
-
           console.log('Da het thoi gian truc tiep, dang tai ket qua day du...');
-
           reloadDay(baseDate);
-
           return;
-
         }
-
         
-
         // Còn đang trực tiếp, cập nhật kết quả
-
         updateRealtimeResults(data);
-
         // Dùng delay từ API, mặc định 3000ms
-
         const delay = data.delay || 3000;
-
         realtimeTimer = setTimeout(loadRealtimeData, delay);
-
       }else{
-
         // Nếu không có dữ liệu, thử lại sau 5 giây
-
         realtimeTimer = setTimeout(loadRealtimeData, 5000);
-
       }
-
     };
-
     document.body.appendChild(script);
-
   }catch(e){
-
     // Nếu lỗi, thử lại sau 5 giây
-
     realtimeTimer = setTimeout(loadRealtimeData, 5000);
-
   }
-
 }
-
-
 
 function updateRealtimeResults(data){
-
   if(!data || !data.kq) return;
-
   
-
   const iso = toISO(baseDate);
-
   const panel = document.querySelector(`.panel[data-iso="${iso}"]`);
-
   if(!panel) return;
-
   
-
   // Lấy danh sách tỉnh trong ngày
-
   const dayKey = JS_DAY_KEY[baseDate.getDay()];
-
   const provinceList = DAY_MAP[dayKey] || [];
-
   if(provinceList.length === 0) return;
-
   
-
   // Map từ index (1,2,3) sang tên tỉnh
-
   const tinhArray = data.tinh ? data.tinh.split(',') : [];
-
   
-
   // Cập nhật từng ô kết quả
-
   tinhArray.forEach((tinhIdx, arrayPos)=>{
-
     const idx = parseInt(tinhIdx);
-
     if(!data.kq[idx]) return;
-
     
-
     const provinceData = data.kq[idx];
-
     const colIndex = arrayPos; // Cột trong bảng (0,1,2,...)
-
     
-
     // Map giải từ API sang row trong bảng
-
     const prizeMap = [
-
       {api:'8', row:0, cls:'g8'},
-
       {api:'7', row:1, cls:''},
-
       {api:'6', row:2, cls:''},
-
       {api:'5', row:3, cls:''},
-
       {api:'4', row:4, cls:''},
-
       {api:'3', row:5, cls:''},
-
       {api:'2', row:6, cls:''},
-
       {api:'1', row:7, cls:''},
-
       {api:'0', row:8, cls:'db'}
-
     ];
-
     
-
     prizeMap.forEach(prize=>{
-
       const cell = panel.querySelector(`tbody tr:nth-child(${prize.row+1}) td:nth-child(${colIndex+2})`);
-
       if(!cell) return;
-
       
-
       let value = provinceData[prize.api];
-
       if(!value) return;
-
       
-
       // Xử lý dữ liệu
-
       if(Array.isArray(value)){
-
         // Giải 6 và 4 có nhiều giá trị
-
         value = value.join('<br>');
-
       }else if(typeof value === 'string'){
-
         // Giữ nguyên các dấu + và *
-
         if(value.includes('+')){
-
           value = value; // Đang quay
-
         }else if(value.includes('*')){
-
           value = value; // Chưa quay
-
         }
-
       }
-
       
-
       // Cập nhật nội dung
-
       cell.innerHTML = value;
-
     });
-
   });
-
 }
-
 </script>
-
 </body>
-
 </html>
-
-
