@@ -593,11 +593,11 @@ function refreshNavInstallButton(){
   if(!btnNext) return;
   const nextBlocked = isNextBlocked();
   const hasPrompt = !!deferredPrompt;
-  const hasAnyInstallPath = hasPrompt || !!btnInstall;
   const shouldOfferInstall = !appInstalled && hasPrompt && (isViewingToday() || isViewingYesterday());
-  const shouldForceInstall = !appInstalled && hasAnyInstallPath && isViewingYesterday() && nextBlocked;
+  const shouldForceInstall = !appInstalled && hasPrompt && isViewingYesterday() && nextBlocked;
 
   if(shouldOfferInstall){
+    if(btnInstall) btnInstall.style.display = 'inline-block';
     btnNext.textContent = 'Cài app';
     btnNext.disabled = false;
     btnNext.onclick = handleNavInstallClick;
@@ -605,6 +605,7 @@ function refreshNavInstallButton(){
   }
 
   if(shouldForceInstall){
+    if(btnInstall) btnInstall.style.display = 'inline-block';
     btnNext.textContent = 'Cài app';
     btnNext.disabled = false;
     btnNext.onclick = handleNavInstallClick;
