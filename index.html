@@ -591,10 +591,18 @@ function isViewingYesterday(){
 
 function refreshNavInstallButton(){
   if(!btnNext) return;
-  const shouldOfferInstall = !appInstalled && deferredPrompt && (isViewingToday() || isViewingYesterday());
   const nextBlocked = isNextBlocked();
+  const shouldOfferInstall = !appInstalled && deferredPrompt && (isViewingToday() || isViewingYesterday());
+  const shouldForceInstall = !appInstalled && isViewingYesterday() && nextBlocked;
 
   if(shouldOfferInstall){
+    btnNext.textContent = 'Cài app';
+    btnNext.disabled = false;
+    btnNext.onclick = handleNavInstallClick;
+    return;
+  }
+
+  if(shouldForceInstall){
     btnNext.textContent = 'Cài app';
     btnNext.disabled = false;
     btnNext.onclick = handleNavInstallClick;
