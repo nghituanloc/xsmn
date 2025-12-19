@@ -321,6 +321,13 @@ function toDMY(d){return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFull
 function toISO(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function parseISOToDate(iso){ const [y,m,d] = iso.split('-').map(Number); return new Date(y, (m||1)-1, d||1); }
 function isoToDmyDash(iso){ if(!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}-${m}-${y}`; }
+function isTodayBeforeCutoff(dateObj){
+  const now = vnNow();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const selectedStart = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+  const currentMinutes = now.getHours()*60 + now.getMinutes();
+  return selectedStart.getTime() === todayStart.getTime() && currentMinutes < REFRESH_START_MIN;
+}
 
 let baseDate = vnNow();
 const now = vnNow();
@@ -390,16 +397,10 @@ function checkFutureAndAlert(selectedDate) {
 }
 
 function normalizeBeforeDraw(dateObj){
-  const current = vnNow();
-  const todayStart = new Date(current.getFullYear(), current.getMonth(), current.getDate());
-  const selectedStart = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
-  const currentMinutes = current.getHours()*60 + current.getMinutes();
-
-  if (selectedStart.getTime() === todayStart.getTime() && currentMinutes < REFRESH_START_MIN) {
-    // Trước giờ quay: chuyển sang ngày hôm qua để tránh lấy nhầm dữ liệu tuần trước
-    const yesterday = new Date(todayStart);
+  if (isTodayBeforeCutoff(dateObj)) {
+    // Trước giờ quay: luôn hiển thị kết quả của ngày hôm qua và không gọi API của hôm nay
+    const yesterday = new Date(dateObj);
     yesterday.setDate(yesterday.getDate()-1);
-    alert(`Chưa đến giờ quay số của ngày ${toDMY(dateObj)}`);
     return { normalized: yesterday, redirected: true };
   }
   return { normalized: dateObj, redirected: false };
@@ -518,6 +519,11 @@ function renderPanel({iso, dayName, shownDate, tableHtml}){
 }
 
 async function appendDay(dateObj){
+  if(isTodayBeforeCutoff(dateObj)){
+    const yesterday = new Date(dateObj);
+    yesterday.setDate(yesterday.getDate()-1);
+    return appendDay(yesterday);
+  }
   const iso = toISO(dateObj);
   if(loadedDates.has(iso)) return;
   loadedDates.add(iso);
