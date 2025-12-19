@@ -591,24 +591,16 @@ function isViewingYesterday(){
 
 function refreshNavInstallButton(){
   if(!btnNext) return;
+  const canInstall = !appInstalled && !!deferredPrompt;
   const nextBlocked = isNextBlocked();
-  const hasPrompt = !!deferredPrompt;
-  const shouldOfferInstall = !appInstalled && hasPrompt && (isViewingToday() || isViewingYesterday());
-  const shouldForceInstall = !appInstalled && hasPrompt && isViewingYesterday() && nextBlocked;
+  const shouldOfferInstall = canInstall && (isViewingToday() || isViewingYesterday());
+  const shouldForceInstall = canInstall && isViewingYesterday() && nextBlocked;
 
-  if(shouldOfferInstall){
-    if(btnInstall) btnInstall.style.display = 'inline-block';
+  if(shouldOfferInstall || shouldForceInstall){
     btnNext.textContent = 'Cài app';
     btnNext.disabled = false;
     btnNext.onclick = handleNavInstallClick;
-    return;
-  }
-
-  if(shouldForceInstall){
     if(btnInstall) btnInstall.style.display = 'inline-block';
-    btnNext.textContent = 'Cài app';
-    btnNext.disabled = false;
-    btnNext.onclick = handleNavInstallClick;
     return;
   }
 
@@ -618,21 +610,19 @@ function refreshNavInstallButton(){
 }
 
 async function handleNavInstallClick(){
-  if(deferredPrompt){
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if(outcome === 'accepted'){
-      appInstalled = true;
-      btnInstall.style.display = 'none';
-    }
-    deferredPrompt = null;
-    refreshNavInstallButton();
+  if(!deferredPrompt){
+    alert('Trình duyệt chưa sẵn sàng hiện cửa sổ cài đặt. Hãy thử lại sau hoặc dùng Chrome/Edge.');
+    if(btnInstall) btnInstall.click();
     return;
   }
-  // Fallback: kích hoạt nút install gốc nếu tồn tại
-  if(btnInstall){
-    btnInstall.click();
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if(outcome === 'accepted'){
+    appInstalled = true;
+    btnInstall.style.display = 'none';
   }
+  deferredPrompt = null;
+  refreshNavInstallButton();
 }
 
 function toggleScrollTop(pos, direction){
