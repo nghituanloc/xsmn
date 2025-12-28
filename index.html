@@ -331,7 +331,9 @@ function isTodayBeforeCutoff(dateObj){
 
 let baseDate = vnNow();
 const now = vnNow();
-if((now.getHours()*60 + now.getMinutes()) < REFRESH_START_MIN){
+const currentMinutes = now.getHours()*60 + now.getMinutes();
+// Chỉ set về hôm qua nếu chưa tới 16h15, nhưng nếu đã qua 16h15 thì giữ hôm nay
+if(currentMinutes < REFRESH_START_MIN){
   baseDate.setDate(baseDate.getDate()-1);
 }
 let currentDay = JS_DAY_KEY[baseDate.getDay()];
@@ -437,7 +439,16 @@ async function resetAndLoad(dateObj){
   const normalized = new Date(dateObj);
   baseDate = normalized;
   updateUI(baseDate);
-  await appendDay(baseDate);
+  
+  // Kiểm tra xem có đang trong khung giờ trực tiếp không
+  const n = vnNow();
+  const m = n.getHours()*60 + n.getMinutes();
+  const today = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const viewingStart = new Date(normalized.getFullYear(), normalized.getMonth(), normalized.getDate());
+  const isInRealtimeWindow = viewingStart.getTime() === todayStart.getTime() && m >= REFRESH_START_MIN && m < RESULT_FINAL_MIN;
+  
+  await appendDay(baseDate, isInRealtimeWindow);
   nextDate = new Date(baseDate);
   nextDate.setDate(nextDate.getDate()-1);
 }
@@ -487,13 +498,30 @@ async function fetchDayData(dateObj){
   return {iso, dayName, shownDate, results};
 }
 
-function buildTable(dayName, cols){
+function buildTable(dayName, cols, forRealtime = false){
   const prizes = [
     {k:'g8',n:'Giải 8',cls:'g8'},{k:'g7',n:'Giải 7'},{k:'g6',n:'Giải 6'},
     {k:'g5',n:'Giải 5'},{k:'g4',n:'Giải 4'},{k:'g3',n:'Giải 3'},
     {k:'g2',n:'Giải Nhì'},{k:'g1',n:'Giải Nhất'},{k:'db',n:'ĐẶC BIỆT',cls:'db'}
   ];
   if(!cols || cols.length===0){
+    if(forRealtime){
+      // Tạo bảng trống với cấu trúc đúng để realtime có thể cập nhật
+      const dayKey = JS_DAY_KEY[baseDate.getDay()];
+      const provinceList = DAY_MAP[dayKey] || [];
+      if(provinceList.length === 0){
+        return '<tbody><tr><td style="padding:24px; font-size:16px; line-height:1.5;">Chưa có dữ liệu, vui lòng thử lại sau.</td></tr></tbody>';
+      }
+      const thead = `
+        <thead>
+          <tr>
+            <th class="province">${dayName}</th>
+            ${provinceList.map(p=>`<th class="province">${p.n}</th>`).join('')}
+          </tr>
+        </thead>`;
+      const tbody = `<tbody>${prizes.map(p=>`<tr><td class="prize">${p.n}</td>${provinceList.map(()=>`<td class="${p.cls||''}"></td>`).join('')}</tr>`).join('')}</tbody>`;
+      return thead + tbody;
+    }
     return '<tbody><tr><td style="padding:24px; font-size:16px; line-height:1.5;">Chưa có dữ liệu, vui lòng thử lại sau.</td></tr></tbody>';
   }
   const thead = `
@@ -518,17 +546,34 @@ function renderPanel({iso, dayName, shownDate, tableHtml}){
   `;
 }
 
-async function appendDay(dateObj){
+async function appendDay(dateObj, forRealtime = false){
   if(isTodayBeforeCutoff(dateObj)){
     const yesterday = new Date(dateObj);
     yesterday.setDate(yesterday.getDate()-1);
-    return appendDay(yesterday);
+    return appendDay(yesterday, forRealtime);
   }
   const iso = toISO(dateObj);
-  if(loadedDates.has(iso)) return;
+  if(loadedDates.has(iso) && !forRealtime) return;
+  
+  // Nếu đang trong khung giờ trực tiếp, chỉ tạo panel trống, không load dữ liệu từ API thông thường
+  if(forRealtime){
+    if(!loadedDates.has(iso)){
+      const dayKey = JS_DAY_KEY[dateObj.getDay()];
+      const dayName = DAY_NAMES_VI[JS_DAY_KEY.indexOf(dayKey)];
+      const shownDate = toDMY(dateObj);
+      const tableHtml = buildTable(dayName, [], true);
+      const panelHtml = renderPanel({iso: iso, dayName: dayName, shownDate: shownDate, tableHtml});
+      document.getElementById('panels').insertAdjacentHTML('beforeend', panelHtml);
+      loadedDates.add(iso);
+    }
+    // Không gọi fetchDayData() khi forRealtime = true, để realtime API tự cập nhật
+    return;
+  }
+  
+  // Trường hợp bình thường: load dữ liệu từ API
   loadedDates.add(iso);
   const data = await fetchDayData(dateObj);
-  const tableHtml = buildTable(data.dayName, data.results);
+  const tableHtml = buildTable(data.dayName, data.results, false);
   const panelHtml = renderPanel({iso: data.iso, dayName: data.dayName, shownDate: data.shownDate, tableHtml});
   document.getElementById('panels').insertAdjacentHTML('beforeend', panelHtml);
 }
@@ -666,7 +711,7 @@ async function loadMoreIfNeeded(){
 }
 
 let refreshTimer = null;
-function manageAutoRefresh(){
+async function manageAutoRefresh(){
   if(refreshTimer) clearInterval(refreshTimer);
   if(realtimeTimer) clearInterval(realtimeTimer);
   
@@ -674,12 +719,35 @@ function manageAutoRefresh(){
   const m = n.getHours()*60 + n.getMinutes();
   const viewingDate = parseISOToDate(document.getElementById('date').value);
   const today = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const viewingStart = new Date(viewingDate.getFullYear(), viewingDate.getMonth(), viewingDate.getDate());
   
-  if(viewingDate.getTime() === today.getTime() && m >= REFRESH_START_MIN && m < RESULT_FINAL_MIN){
+  // Nếu đang trong khung giờ trực tiếp và đang xem hôm nay
+  if(viewingStart.getTime() === todayStart.getTime() && m >= REFRESH_START_MIN && m < RESULT_FINAL_MIN){
+    // Đảm bảo baseDate là hôm nay (không phải hôm qua)
+    if(baseDate.getTime() !== todayStart.getTime()){
+      baseDate = new Date(today);
+      updateUI(baseDate);
+    }
+    
+    // Xóa panel cũ nếu có (có thể có dữ liệu cũ) và tạo lại panel trống cho realtime
+    const iso = toISO(baseDate);
+    const existingPanel = document.querySelector(`.panel[data-iso="${iso}"]`);
+    if(existingPanel){
+      // Xóa panel cũ để tránh hiển thị dữ liệu cũ
+      existingPanel.remove();
+      loadedDates.delete(iso);
+    }
+    
+    // Tạo panel mới với cấu trúc trống để realtime cập nhật
+    if(!loadedDates.has(iso)){
+      await appendDay(baseDate, true); // Tạo panel với cấu trúc trống để realtime cập nhật
+    }
+    
     // Trong khoảng 16h15 - 16h40, dùng realtime API
     const REALTIME_END = 16*60 + 40;
     if(m < REALTIME_END){
-      startRealtimeUpdates();
+      await startRealtimeUpdates();
     }else{
       // Sau 16h40, dùng reload bình thường
       refreshTimer = setInterval(()=>reloadDay(baseDate), 60000);
@@ -687,9 +755,17 @@ function manageAutoRefresh(){
   }
 }
 
-function startRealtimeUpdates(){
+async function startRealtimeUpdates(){
   realtimeCounter = 0;
-  loadRealtimeData(); // Gọi ngay lần đầu
+  // Đảm bảo panel đã được tạo trước khi bắt đầu realtime
+  const iso = toISO(baseDate);
+  if(!loadedDates.has(iso)){
+    await appendDay(baseDate, true); // Tạo panel với cấu trúc trống để realtime cập nhật
+  }
+  // Đợi một chút để DOM được render
+  setTimeout(() => {
+    loadRealtimeData(); // Gọi ngay lần đầu
+  }, 300);
 }
 
 async function loadRealtimeData(){
@@ -706,33 +782,40 @@ async function loadRealtimeData(){
     script.src = url;
     script.onerror = ()=>{
       // Nếu lỗi, thử lại sau 5 giây
-      document.body.removeChild(script);
+      if(script.parentNode){
+        document.body.removeChild(script);
+      }
       realtimeTimer = setTimeout(loadRealtimeData, 5000);
     };
     script.onload = ()=>{
-      document.body.removeChild(script);
-      if(window.kqxs && window.kqxs.mn){
-        const data = window.kqxs.mn;
-        
-        // Kiểm tra xem còn đang trực tiếp không
-        if(data.run === 0 || !data.kq){
-          // Đã hết trực tiếp, dừng realtime và load kết quả đầy đủ
-          if(realtimeTimer) clearTimeout(realtimeTimer);
-          realtimeTimer = null;
-          console.log('Da het thoi gian truc tiep, dang tai ket qua day du...');
-          reloadDay(baseDate);
-          return;
+      // Đợi một chút để đảm bảo dữ liệu đã được parse
+      setTimeout(() => {
+        if(script.parentNode){
+          document.body.removeChild(script);
         }
         
-        // Còn đang trực tiếp, cập nhật kết quả
-        updateRealtimeResults(data);
-        // Dùng delay từ API, mặc định 3000ms
-        const delay = data.delay || 3000;
-        realtimeTimer = setTimeout(loadRealtimeData, delay);
-      }else{
-        // Nếu không có dữ liệu, thử lại sau 5 giây
-        realtimeTimer = setTimeout(loadRealtimeData, 5000);
-      }
+        if(window.kqxs && window.kqxs.mn){
+          const data = window.kqxs.mn;
+          
+          // Kiểm tra xem còn đang trực tiếp không
+          if(data.run === 0 || !data.kq){
+            // Đã hết trực tiếp, dừng realtime và load kết quả đầy đủ
+            if(realtimeTimer) clearTimeout(realtimeTimer);
+            realtimeTimer = null;
+            reloadDay(baseDate);
+            return;
+          }
+          
+          // Còn đang trực tiếp, cập nhật kết quả
+          updateRealtimeResults(data);
+          // Dùng delay từ API, mặc định 3000ms
+          const delay = data.delay || 3000;
+          realtimeTimer = setTimeout(loadRealtimeData, delay);
+        }else{
+          // Nếu không có dữ liệu, thử lại sau 5 giây
+          realtimeTimer = setTimeout(loadRealtimeData, 5000);
+        }
+      }, 100);
     };
     document.body.appendChild(script);
   }catch(e){
@@ -742,27 +825,40 @@ async function loadRealtimeData(){
 }
 
 function updateRealtimeResults(data){
-  if(!data || !data.kq) return;
+  if(!data || !data.kq) {
+    return;
+  }
   
   const iso = toISO(baseDate);
   const panel = document.querySelector(`.panel[data-iso="${iso}"]`);
-  if(!panel) return;
+  if(!panel) {
+    // Nếu chưa có panel, tạo panel với cấu trúc trống
+    const isoToday = toISO(baseDate);
+    if(!loadedDates.has(isoToday)){
+      appendDay(baseDate, true);
+    }
+    // Đợi một chút để panel được tạo, sau đó thử lại
+    setTimeout(() => updateRealtimeResults(data), 500);
+    return;
+  }
   
   // Lấy danh sách tỉnh trong ngày
   const dayKey = JS_DAY_KEY[baseDate.getDay()];
   const provinceList = DAY_MAP[dayKey] || [];
   if(provinceList.length === 0) return;
   
-  // Map từ index (1,2,3) sang tên tỉnh
-  const tinhArray = data.tinh ? data.tinh.split(',') : [];
+  // Map từ index API sang tên tỉnh
+  const tinhArray = data.tinh ? data.tinh.split(',').map(x => x.trim()) : [];
+  if(tinhArray.length === 0) return;
   
-  // Cập nhật từng ô kết quả
+  // Tạo map từ index API sang vị trí trong provinceList
+  // Giả định thứ tự trong tinhArray tương ứng với thứ tự trong provinceList
   tinhArray.forEach((tinhIdx, arrayPos)=>{
     const idx = parseInt(tinhIdx);
-    if(!data.kq[idx]) return;
+    if(isNaN(idx) || !data.kq[idx]) return;
     
     const provinceData = data.kq[idx];
-    const colIndex = arrayPos; // Cột trong bảng (0,1,2,...)
+    const colIndex = arrayPos; // Cột trong bảng (0,1,2,...) - tương ứng với thứ tự trong provinceList
     
     // Map giải từ API sang row trong bảng
     const prizeMap = [
@@ -778,27 +874,48 @@ function updateRealtimeResults(data){
     ];
     
     prizeMap.forEach(prize=>{
-      const cell = panel.querySelector(`tbody tr:nth-child(${prize.row+1}) td:nth-child(${colIndex+2})`);
+      // Cột đầu tiên là "prize", nên cột tỉnh bắt đầu từ 2 (colIndex+2)
+      const table = panel.querySelector('table.tbl');
+      if(!table) return;
+      
+      const tbody = table.querySelector('tbody');
+      if(!tbody) return;
+      
+      const rows = tbody.querySelectorAll('tr');
+      if(rows.length <= prize.row) return;
+      
+      const row = rows[prize.row];
+      if(!row) return;
+      
+      const cells = row.querySelectorAll('td');
+      const cellIndex = colIndex + 1; // +1 vì cột đầu tiên là "prize"
+      if(cells.length <= cellIndex) return;
+      
+      const cell = cells[cellIndex];
       if(!cell) return;
       
       let value = provinceData[prize.api];
-      if(!value) return;
+      // Cho phép cập nhật cả giá trị rỗng và giá trị có dấu + hoặc *
+      if(value === undefined || value === null) return;
       
       // Xử lý dữ liệu
       if(Array.isArray(value)){
-        // Giải 6 và 4 có nhiều giá trị
+        // Giải 6, 4, 3 có nhiều giá trị
         value = value.join('<br>');
       }else if(typeof value === 'string'){
-        // Giữ nguyên các dấu + và *
-        if(value.includes('+')){
-          value = value; // Đang quay
-        }else if(value.includes('*')){
-          value = value; // Chưa quay
-        }
+        // Giữ nguyên các dấu + và * để hiển thị trạng thái
+        value = value;
       }
       
       // Cập nhật nội dung
       cell.innerHTML = value;
+      // Thêm class nếu cần
+      if(prize.cls){
+        cell.className = prize.cls;
+      } else {
+        // Xóa class cũ nếu không phải giải đặc biệt
+        cell.className = '';
+      }
     });
   });
 }
