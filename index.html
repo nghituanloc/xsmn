@@ -347,11 +347,20 @@ let lastScrollY = 0;
 let realtimeCounter = 0;
 let realtimeTimer = null;
 
-window.addEventListener('load', () => { registerServiceWorker(); detectInstalledMode(); resetAndLoad(baseDate); manageAutoRefresh(); setupInfiniteScroll(); });
+window.addEventListener('load', () => { registerServiceWorker(); detectInstalledMode(); setupVisibilityRefresh(); resetAndLoad(baseDate); manageAutoRefresh(); setupInfiniteScroll(); });
+
+let lastVisibilityRefresh = 0;
+const VISIBILITY_REFRESH_GAP = 30000; // 30s giữa các lần refresh nền
 
 function registerServiceWorker(){
   if(!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  navigator.serviceWorker.register('service-worker.js')
+    .then(() => {
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      });
+    })
+    .catch(()=>{});
 }
 
 function detectInstalledMode(){
@@ -755,6 +764,23 @@ async function manageAutoRefresh(){
   }
 }
 
+function setupVisibilityRefresh(){
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState !== 'visible') return;
+
+    const nowTs = Date.now();
+    if(nowTs - lastVisibilityRefresh < VISIBILITY_REFRESH_GAP) return;
+
+    const inStandalone = appInstalled || window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if(!inStandalone) return;
+
+    lastVisibilityRefresh = nowTs;
+    const viewingDate = parseISOToDate(document.getElementById('date').value);
+    reloadDay(viewingDate);
+    manageAutoRefresh();
+  });
+}
+
 async function startRealtimeUpdates(){
   realtimeCounter = 0;
   // Đảm bảo panel đã được tạo trước khi bắt đầu realtime
@@ -788,12 +814,15 @@ async function loadRealtimeData(){
       realtimeTimer = setTimeout(loadRealtimeData, 5000);
     };
     script.onload = ()=>{
-      // Đợi một chút để đảm bảo dữ liệu đã được parse
-      setTimeout(() => {
+      // Kiểm tra dữ liệu với retry mechanism
+      let retryCount = 0;
+      const maxRetries = 10;
+      const checkData = () => {
         if(script.parentNode){
           document.body.removeChild(script);
         }
         
+        // Kiểm tra dữ liệu từ window.kqxs
         if(window.kqxs && window.kqxs.mn){
           const data = window.kqxs.mn;
           
@@ -811,11 +840,18 @@ async function loadRealtimeData(){
           // Dùng delay từ API, mặc định 3000ms
           const delay = data.delay || 3000;
           realtimeTimer = setTimeout(loadRealtimeData, delay);
+        }else if(retryCount < maxRetries){
+          // Nếu chưa có dữ liệu, thử lại sau 100ms
+          retryCount++;
+          setTimeout(checkData, 100);
         }else{
-          // Nếu không có dữ liệu, thử lại sau 5 giây
+          // Nếu đã thử nhiều lần mà vẫn không có dữ liệu, thử lại sau 5 giây
           realtimeTimer = setTimeout(loadRealtimeData, 5000);
         }
-      }, 100);
+      };
+      
+      // Bắt đầu kiểm tra sau 100ms
+      setTimeout(checkData, 100);
     };
     document.body.appendChild(script);
   }catch(e){
@@ -830,15 +866,19 @@ function updateRealtimeResults(data){
   }
   
   const iso = toISO(baseDate);
-  const panel = document.querySelector(`.panel[data-iso="${iso}"]`);
+  let panel = document.querySelector(`.panel[data-iso="${iso}"]`);
   if(!panel) {
     // Nếu chưa có panel, tạo panel với cấu trúc trống
     const isoToday = toISO(baseDate);
     if(!loadedDates.has(isoToday)){
-      appendDay(baseDate, true);
+      appendDay(baseDate, true).then(() => {
+        // Sau khi panel được tạo, thử lại ngay
+        updateRealtimeResults(data);
+      });
+    } else {
+      // Đợi một chút để panel được tạo, sau đó thử lại
+      setTimeout(() => updateRealtimeResults(data), 300);
     }
-    // Đợi một chút để panel được tạo, sau đó thử lại
-    setTimeout(() => updateRealtimeResults(data), 500);
     return;
   }
   
@@ -850,6 +890,16 @@ function updateRealtimeResults(data){
   // Map từ index API sang tên tỉnh
   const tinhArray = data.tinh ? data.tinh.split(',').map(x => x.trim()) : [];
   if(tinhArray.length === 0) return;
+  
+  // Tìm table trong panel
+  const table = panel.querySelector('table.tbl');
+  if(!table) return;
+  
+  const tbody = table.querySelector('tbody');
+  if(!tbody) return;
+  
+  const rows = tbody.querySelectorAll('tr');
+  if(rows.length === 0) return;
   
   // Tạo map từ index API sang vị trí trong provinceList
   // Giả định thứ tự trong tinhArray tương ứng với thứ tự trong provinceList
@@ -874,14 +924,6 @@ function updateRealtimeResults(data){
     ];
     
     prizeMap.forEach(prize=>{
-      // Cột đầu tiên là "prize", nên cột tỉnh bắt đầu từ 2 (colIndex+2)
-      const table = panel.querySelector('table.tbl');
-      if(!table) return;
-      
-      const tbody = table.querySelector('tbody');
-      if(!tbody) return;
-      
-      const rows = tbody.querySelectorAll('tr');
       if(rows.length <= prize.row) return;
       
       const row = rows[prize.row];

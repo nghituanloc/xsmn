@@ -11,6 +11,8 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
+  // Cài đặt xong thì kích hoạt ngay bản SW mới
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   );
@@ -18,9 +20,14 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(
-      keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-    ))
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)));
+      // Nhận quyền điều khiển ngay lập tức và ép các client reload để lấy dữ liệu mới
+      await self.clients.claim();
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      clientList.forEach(client => client.navigate(client.url));
+    })()
   );
 });
 
