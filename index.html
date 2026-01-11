@@ -220,6 +220,26 @@
   }
   .scroll-top:active{ transform: translateY(1px); }
 
+  /* Pull-to-refresh indicator */
+  .pull-indicator {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -100%);
+    background: rgba(37, 92, 180, 0.95);
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 0 0 10px 10px;
+    font-weight: 700;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    transition: transform 0.15s ease, opacity 0.15s ease;
+    opacity: 0;
+    z-index: 200;
+    pointer-events: none;
+  }
+  .pull-indicator.show { opacity: 1; }
+  .pull-indicator.active { transform: translate(-50%, 0); }
+
   @media (max-width: 768px) {
     .wrap { padding: 5px; }
     input[type="date"] { font-size: 20px; }
@@ -262,6 +282,7 @@
 </div>
 
 <button id="btnTop" class="scroll-top" aria-label="Lên đầu trang">^</button>
+<div id="pullIndicator" class="pull-indicator">Kéo xuống để làm mới</div>
 
 <script>
 // --- LOGIC CÀI APP (PWA) ---
@@ -347,7 +368,15 @@ let lastScrollY = 0;
 let realtimeCounter = 0;
 let realtimeTimer = null;
 
-window.addEventListener('load', () => { registerServiceWorker(); detectInstalledMode(); setupVisibilityRefresh(); resetAndLoad(baseDate); manageAutoRefresh(); setupInfiniteScroll(); });
+window.addEventListener('load', () => { registerServiceWorker(); detectInstalledMode(); setupVisibilityRefresh(); setupPullToRefresh(); resetAndLoad(baseDate); manageAutoRefresh(); setupInfiniteScroll(); });
+
+// Pull-to-refresh (chỉ khi đang ở đầu trang)
+const PULL_THRESHOLD = 70;
+let pullStartY = null;
+let isPulling = false;
+let isRefreshing = false;
+let currentPullDistance = 0;
+const pullIndicator = document.getElementById('pullIndicator');
 
 let lastVisibilityRefresh = 0;
 const VISIBILITY_REFRESH_GAP = 30000; // 30s giữa các lần refresh nền
@@ -507,12 +536,13 @@ async function fetchDayData(dateObj){
   return {iso, dayName, shownDate, results};
 }
 
+const PRIZES = [
+  {k:'g8',n:'Giải 8',cls:'g8'},{k:'g7',n:'Giải 7'},{k:'g6',n:'Giải 6'},
+  {k:'g5',n:'Giải 5'},{k:'g4',n:'Giải 4'},{k:'g3',n:'Giải 3'},
+  {k:'g2',n:'Giải Nhì'},{k:'g1',n:'Giải Nhất'},{k:'db',n:'ĐẶC BIỆT',cls:'db'}
+];
+
 function buildTable(dayName, cols, forRealtime = false){
-  const prizes = [
-    {k:'g8',n:'Giải 8',cls:'g8'},{k:'g7',n:'Giải 7'},{k:'g6',n:'Giải 6'},
-    {k:'g5',n:'Giải 5'},{k:'g4',n:'Giải 4'},{k:'g3',n:'Giải 3'},
-    {k:'g2',n:'Giải Nhì'},{k:'g1',n:'Giải Nhất'},{k:'db',n:'ĐẶC BIỆT',cls:'db'}
-  ];
   if(!cols || cols.length===0){
     if(forRealtime){
       // Tạo bảng trống với cấu trúc đúng để realtime có thể cập nhật
@@ -528,7 +558,7 @@ function buildTable(dayName, cols, forRealtime = false){
             ${provinceList.map(p=>`<th class="province">${p.n}</th>`).join('')}
           </tr>
         </thead>`;
-      const tbody = `<tbody>${prizes.map(p=>`<tr><td class="prize">${p.n}</td>${provinceList.map(()=>`<td class="${p.cls||''}"></td>`).join('')}</tr>`).join('')}</tbody>`;
+      const tbody = `<tbody>${PRIZES.map(p=>`<tr><td class="prize">${p.n}</td>${provinceList.map(()=>`<td class="${p.cls||''}"></td>`).join('')}</tr>`).join('')}</tbody>`;
       return thead + tbody;
     }
     return '<tbody><tr><td style="padding:24px; font-size:16px; line-height:1.5;">Chưa có dữ liệu, vui lòng thử lại sau.</td></tr></tbody>';
@@ -540,7 +570,7 @@ function buildTable(dayName, cols, forRealtime = false){
         ${cols.map(c=>`<th class="province">${c.province}</th>`).join('')}
       </tr>
     </thead>`;
-  const tbody = `<tbody>${prizes.map(p=>`<tr><td class="prize">${p.n}</td>${cols.map(c=>`<td class="${p.cls||''}">${c[p.k]||''}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  const tbody = `<tbody>${PRIZES.map(p=>`<tr><td class="prize">${p.n}</td>${cols.map(c=>`<td class="${p.cls||''}">${c[p.k]||''}</td>`).join('')}</tr>`).join('')}</tbody>`;
   return thead + tbody;
 }
 
@@ -597,6 +627,40 @@ async function reloadDay(dateObj){
   const data = await fetchDayData(dateObj);
   panel.querySelector('.caption').textContent = `${data.dayName} - ${data.shownDate}`;
   panel.querySelector('.tableWrap').innerHTML = `<table class="tbl">${buildTable(data.dayName, data.results)}</table>`;
+}
+
+function ensureRealtimeTable(panel, dayName, provinceNames){
+  if(!panel) return null;
+  const wrap = panel.querySelector('.tableWrap');
+  if(!wrap) return null;
+
+  const table = wrap.querySelector('table.tbl');
+  const headerProvinces = table ? Array.from(table.querySelectorAll('thead th.province')).slice(1).map(th=>th.textContent.trim()) : [];
+  const needsRebuild = !table || headerProvinces.length !== provinceNames.length || headerProvinces.some((n,i)=>n !== provinceNames[i]);
+
+  if(needsRebuild){
+    const thead = `
+      <thead>
+        <tr>
+          <th class="province">${dayName}</th>
+          ${provinceNames.map(p=>`<th class="province">${p}</th>`).join('')}
+        </tr>
+      </thead>`;
+    const tbody = `<tbody>${PRIZES.map(p=>`<tr><td class="prize">${p.n}</td>${provinceNames.map(()=>`<td class="${p.cls||''}"></td>`).join('')}</tr>`).join('')}</tbody>`;
+    wrap.innerHTML = `<table class="tbl">${thead}${tbody}</table>`;
+  }
+
+  return wrap.querySelector('table.tbl');
+}
+
+function formatRealtimeValue(value){
+  if(value === undefined || value === null) return '';
+  if(Array.isArray(value)) return value.map(v=>formatRealtimeValue(v)).join('<br>');
+  if(typeof value === 'number') return String(value);
+  let s = String(value).trim();
+  // Tách theo dấu '-' giống dạng dữ liệu thường
+  s = s.split(/\s*-\s*/).join('<br>');
+  return s;
 }
 
 function setupInfiniteScroll(){
@@ -781,6 +845,68 @@ function setupVisibilityRefresh(){
   });
 }
 
+function setupPullToRefresh(){
+  const supportsTouch = 'ontouchstart' in window;
+  if(!supportsTouch) return; // Chỉ áp dụng trên thiết bị cảm ứng
+
+  const start = (y)=>{
+    if(window.scrollY > 0 || isRefreshing) return;
+    pullStartY = y;
+    isPulling = true;
+    currentPullDistance = 0;
+    if(pullIndicator){
+      pullIndicator.textContent = 'Kéo xuống để làm mới';
+      pullIndicator.classList.add('show');
+      pullIndicator.classList.remove('active');
+    }
+  };
+
+  const move = (y)=>{
+    if(!isPulling || pullStartY === null) return;
+    currentPullDistance = Math.max(0, y - pullStartY);
+    if(currentPullDistance > 0) {
+      if(pullIndicator){
+        pullIndicator.classList.add('show');
+        pullIndicator.classList.toggle('active', currentPullDistance >= PULL_THRESHOLD);
+        pullIndicator.style.transform = `translate(-50%, ${Math.min(0, currentPullDistance/2 - 100)}%)`;
+      }
+    }
+    if(currentPullDistance > 10){
+      // Ngăn scroll ngược khi đang kéo để hiển thị indicator mượt hơn
+      event?.preventDefault?.();
+    }
+  };
+
+  const end = ()=>{
+    if(!isPulling) return;
+    const shouldRefresh = currentPullDistance >= PULL_THRESHOLD && !isRefreshing;
+    pullStartY = null;
+    isPulling = false;
+    currentPullDistance = 0;
+    if(pullIndicator){
+      pullIndicator.style.transform = 'translate(-50%, -100%)';
+      pullIndicator.classList.remove('active');
+      pullIndicator.classList.remove('show');
+    }
+    if(shouldRefresh){
+      isRefreshing = true;
+      if(pullIndicator){
+        pullIndicator.textContent = 'Đang làm mới...';
+        pullIndicator.classList.add('show');
+        pullIndicator.classList.add('active');
+      }
+      // Ưu tiên reload trang để làm mới cả SW và dữ liệu
+      location.reload();
+      setTimeout(()=>{ isRefreshing = false; }, 2000);
+    }
+  };
+
+  window.addEventListener('touchstart', (e)=>{ if(e.touches && e.touches[0]) start(e.touches[0].clientY); }, {passive:true});
+  window.addEventListener('touchmove', (e)=>{ if(e.touches && e.touches[0]) move(e.touches[0].clientY); }, {passive:false});
+  window.addEventListener('touchend', end, {passive:true});
+  window.addEventListener('touchcancel', end, {passive:true});
+}
+
 async function startRealtimeUpdates(){
   realtimeCounter = 0;
   // Đảm bảo panel đã được tạo trước khi bắt đầu realtime
@@ -884,15 +1010,22 @@ function updateRealtimeResults(data){
   
   // Lấy danh sách tỉnh trong ngày
   const dayKey = JS_DAY_KEY[baseDate.getDay()];
-  const provinceList = DAY_MAP[dayKey] || [];
-  if(provinceList.length === 0) return;
+  const fallbackProvinceList = DAY_MAP[dayKey] || [];
+  const provinceIds = data.tinh ? data.tinh.split(',').map(x => x.trim()).filter(Boolean) : [];
+  let provinceNames = provinceIds.map((id, idx)=>{
+    const numericIndex = parseInt(id,10) - 1;
+    if(!isNaN(numericIndex) && fallbackProvinceList[numericIndex]) return fallbackProvinceList[numericIndex].n;
+    if(fallbackProvinceList[idx]) return fallbackProvinceList[idx].n;
+    return `Đài ${id}`;
+  });
+  if(provinceNames.length === 0){
+    provinceNames = fallbackProvinceList.map(p=>p.n);
+  }
+  if(provinceNames.length === 0) return;
   
-  // Map từ index API sang tên tỉnh
-  const tinhArray = data.tinh ? data.tinh.split(',').map(x => x.trim()) : [];
-  if(tinhArray.length === 0) return;
-  
-  // Tìm table trong panel
-  const table = panel.querySelector('table.tbl');
+  // Đảm bảo bảng khớp số cột theo dữ liệu realtime
+  const dayName = DAY_NAMES_VI[JS_DAY_KEY.indexOf(dayKey)];
+  const table = ensureRealtimeTable(panel, dayName, provinceNames);
   if(!table) return;
   
   const tbody = table.querySelector('tbody');
@@ -901,14 +1034,12 @@ function updateRealtimeResults(data){
   const rows = tbody.querySelectorAll('tr');
   if(rows.length === 0) return;
   
-  // Tạo map từ index API sang vị trí trong provinceList
-  // Giả định thứ tự trong tinhArray tương ứng với thứ tự trong provinceList
-  tinhArray.forEach((tinhIdx, arrayPos)=>{
-    const idx = parseInt(tinhIdx);
-    if(isNaN(idx) || !data.kq[idx]) return;
-    
-    const provinceData = data.kq[idx];
-    const colIndex = arrayPos; // Cột trong bảng (0,1,2,...) - tương ứng với thứ tự trong provinceList
+  // Dữ liệu realtime sắp xếp theo thứ tự provinceIds/provinceNames (arrayPos)
+  provinceNames.forEach((_, arrayPos)=>{
+    const provinceKey = provinceIds[arrayPos] || (arrayPos+1).toString();
+    const provinceData = data.kq && (data.kq[provinceKey] || data.kq[arrayPos] || data.kq[arrayPos+1]);
+    if(!provinceData) return;
+    const colIndex = arrayPos;
     
     // Map giải từ API sang row trong bảng
     const prizeMap = [
@@ -936,20 +1067,9 @@ function updateRealtimeResults(data){
       const cell = cells[cellIndex];
       if(!cell) return;
       
-      let value = provinceData[prize.api];
-      // Cho phép cập nhật cả giá trị rỗng và giá trị có dấu + hoặc *
-      if(value === undefined || value === null) return;
-      
-      // Xử lý dữ liệu
-      if(Array.isArray(value)){
-        // Giải 6, 4, 3 có nhiều giá trị
-        value = value.join('<br>');
-      }else if(typeof value === 'string'){
-        // Giữ nguyên các dấu + và * để hiển thị trạng thái
-        value = value;
-      }
-      
-      // Cập nhật nội dung
+      const value = formatRealtimeValue(provinceData[prize.api]);
+      if(value === '') return;
+
       cell.innerHTML = value;
       // Thêm class nếu cần
       if(prize.cls){
