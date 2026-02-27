@@ -282,7 +282,7 @@
 </div>
 
 <button id="btnTop" class="scroll-top" aria-label="Lên đầu trang">^</button>
-<div id="pullIndicator" class="pull-indicator">Kéo xuống để làm mới</div>
+<div id="pullIndicator" class="pull-indicator">Làm mới</div>
 
 <script>
 // --- LOGIC CÀI APP (PWA) ---
@@ -773,7 +773,7 @@ function refreshNavInstallButton(){
   const nextBlocked = isNextBlocked();
 
   if(shouldOfferInstall){
-    btnNext.textContent = 'Cài app';
+    btnNext.textContent = 'App';
     btnNext.disabled = false;
     btnNext.onclick = handleNavInstallClick;
     return;
