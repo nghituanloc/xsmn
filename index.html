@@ -368,6 +368,7 @@ let hideTopTimer = null;
 let lastScrollY = 0;
 let realtimeCounter = 0;
 let realtimeTimer = null;
+let realtimeAnimatingCells = new Map();
 
 window.addEventListener('load', () => { registerServiceWorker(); detectInstalledMode(); setupVisibilityRefresh(); setupPullToRefresh(); resetAndLoad(baseDate); manageAutoRefresh(); setupInfiniteScroll(); });
 
@@ -627,7 +628,18 @@ async function reloadDay(dateObj){
   }
   const data = await fetchDayData(dateObj);
   panel.querySelector('.caption').textContent = `${data.dayName} - ${data.shownDate}`;
+  clearRealtimeAnimationsInContainer(panel);
   panel.querySelector('.tableWrap').innerHTML = `<table class="tbl">${buildTable(data.dayName, data.results)}</table>`;
+}
+
+function clearRealtimeAnimationsInContainer(container){
+  if(!container) return;
+  for (const [cell, state] of realtimeAnimatingCells.entries()){
+    if(container.contains(cell)){
+      clearInterval(state.timerId);
+      realtimeAnimatingCells.delete(cell);
+    }
+  }
 }
 
 function ensureRealtimeTable(panel, dayName, provinceNames){
@@ -640,6 +652,7 @@ function ensureRealtimeTable(panel, dayName, provinceNames){
   const needsRebuild = !table || headerProvinces.length !== provinceNames.length || headerProvinces.some((n,i)=>n !== provinceNames[i]);
 
   if(needsRebuild){
+    clearRealtimeAnimationsInContainer(wrap);
     const thead = `
       <thead>
         <tr>
@@ -662,6 +675,52 @@ function formatRealtimeValue(value){
   // Tách theo dấu '-' giống dạng dữ liệu thường
   s = s.split(/\s*-\s*/).join('<br>');
   return s;
+}
+
+function stopRealtimeAnimationForCell(cell){
+  const state = realtimeAnimatingCells.get(cell);
+  if(!state) return;
+  clearInterval(state.timerId);
+  realtimeAnimatingCells.delete(cell);
+}
+
+function cleanupDetachedRealtimeAnimations(){
+  for (const [cell, state] of realtimeAnimatingCells.entries()){
+    if(!document.body.contains(cell)){
+      clearInterval(state.timerId);
+      realtimeAnimatingCells.delete(cell);
+    }
+  }
+}
+
+function animatePlusTemplate(template){
+  return template.replace(/\+/g, () => String(Math.floor(Math.random() * 10)));
+}
+
+function applyRealtimeValueToCell(cell, rawValue){
+  const valueTemplate = formatRealtimeValue(rawValue);
+  if(valueTemplate === ''){
+    stopRealtimeAnimationForCell(cell);
+    return valueTemplate;
+  }
+
+  if(valueTemplate.includes('+')){
+    const state = realtimeAnimatingCells.get(cell);
+    if(!state || state.template !== valueTemplate){
+      stopRealtimeAnimationForCell(cell);
+      const render = () => {
+        cell.innerHTML = animatePlusTemplate(valueTemplate);
+      };
+      render();
+      const timerId = setInterval(render, 90);
+      realtimeAnimatingCells.set(cell, { timerId, template: valueTemplate });
+    }
+    return valueTemplate;
+  }
+
+  stopRealtimeAnimationForCell(cell);
+  cell.innerHTML = valueTemplate;
+  return valueTemplate;
 }
 
 function setupInfiniteScroll(){
@@ -809,6 +868,7 @@ async function manageAutoRefresh(){
     const existingPanel = document.querySelector(`.panel[data-iso="${iso}"]`);
     if(existingPanel){
       // Xóa panel cũ để tránh hiển thị dữ liệu cũ
+      clearRealtimeAnimationsInContainer(existingPanel);
       existingPanel.remove();
       loadedDates.delete(iso);
     }
@@ -995,6 +1055,7 @@ function updateRealtimeResults(data){
   if(!data || !data.kq) {
     return;
   }
+  cleanupDetachedRealtimeAnimations();
   
   const iso = toISO(baseDate);
   let panel = document.querySelector(`.panel[data-iso="${iso}"]`);
@@ -1072,10 +1133,8 @@ function updateRealtimeResults(data){
       const cell = cells[cellIndex];
       if(!cell) return;
       
-      const value = formatRealtimeValue(provinceData[prize.api]);
+      const value = applyRealtimeValueToCell(cell, provinceData[prize.api]);
       if(value === '') return;
-
-      cell.innerHTML = value;
       // Thêm class nếu cần
       if(prize.cls){
         cell.className = prize.cls;
