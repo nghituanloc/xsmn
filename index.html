@@ -334,7 +334,8 @@ const JS_DAY_KEY = ['sun','mon','tue','wed','thu','fri','sat'];
 const DAY_NAMES_VI = ['CHỦ NHẬT', 'THỨ 2', 'THỨ 3', 'THỨ 4', 'THỨ 5', 'THỨ 6', 'THỨ 7'];
 
 const REFRESH_START_MIN = 16*60 + 15; 
-const RESULT_FINAL_MIN = 16*60 + 45;
+const RESULT_FINAL_MIN = 16*60 + 40;
+const REALTIME_API_URL = 'https://live.minhngoc.net/O0O/0/xstt/js_m1.js';
 
 function vnNow(){ return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Ho_Chi_Minh'})); }
 function pad(n){return n<10?('0'+n):n}
@@ -786,7 +787,7 @@ async function loadMoreIfNeeded(){
 let refreshTimer = null;
 async function manageAutoRefresh(){
   if(refreshTimer) clearInterval(refreshTimer);
-  if(realtimeTimer) clearInterval(realtimeTimer);
+  if(realtimeTimer) clearTimeout(realtimeTimer);
   
   const n = vnNow();
   const m = n.getHours()*60 + n.getMinutes();
@@ -921,16 +922,20 @@ async function startRealtimeUpdates(){
 }
 
 async function loadRealtimeData(){
-  if(realtimeTimer) clearInterval(realtimeTimer);
+  if(realtimeTimer) clearTimeout(realtimeTimer);
   
   realtimeCounter++;
-  const url = `https://dc.minhngoc.net/O0O/0/xstt/js_m1.js?_=${realtimeCounter}`;
+  const url = `${REALTIME_API_URL}?_=${Date.now()}_${realtimeCounter}`;
   
   try{
-    // Reset global object
-    window.kqxs = undefined;
+    // Feed trả về dạng "kqxs.mn={...}", nên cần đảm bảo namespace kqxs tồn tại
+    if(!window.kqxs || typeof window.kqxs !== 'object'){
+      window.kqxs = {};
+    }
+    delete window.kqxs.mn;
     
     const script = document.createElement('script');
+    script.async = true;
     script.src = url;
     script.onerror = ()=>{
       // Nếu lỗi, thử lại sau 5 giây
