@@ -4,6 +4,7 @@
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#b71c1c",
   "description": "Xem kết quả xổ số miền Nam theo ngày, tối ưu di động.",
@@ -34,5 +35,3 @@
     }
   ]
 }
-
-
