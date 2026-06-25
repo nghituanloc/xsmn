@@ -100,23 +100,6 @@ export function handleDateChange() {
   manageAutoRefresh();
 }
 
-export function goToToday() {
-  const today = vnNow();
-  if (checkFutureAndAlert(today)) return;
-  const { normalized } = normalizeBeforeDraw(today);
-  resetAndLoad(normalized);
-  manageAutoRefresh();
-}
-
-export function goToYesterday() {
-  const yesterday = vnNow();
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (checkFutureAndAlert(yesterday)) return;
-  const { normalized } = normalizeBeforeDraw(yesterday);
-  resetAndLoad(normalized);
-  manageAutoRefresh();
-}
-
 export function toggleDatePicker() {
   const wrap = document.getElementById('datePickerWrap');
   const btn = document.getElementById('btnPickDate');
@@ -132,8 +115,6 @@ export function toggleDatePicker() {
 
 export function bindNavigation() {
   document.getElementById('btnPrev')?.addEventListener('click', () => changeDate(-1));
-  document.getElementById('btnYesterday')?.addEventListener('click', goToYesterday);
-  document.getElementById('btnToday')?.addEventListener('click', goToToday);
   document.getElementById('btnPickDate')?.addEventListener('click', toggleDatePicker);
   getDateInput()?.addEventListener('change', handleDateChange);
 }
