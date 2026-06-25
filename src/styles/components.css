@@ -195,21 +195,19 @@
 }
 
 .province-head-scroll {
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.province-head-scroll::-webkit-scrollbar {
-  display: none;
+  pointer-events: none;
 }
 
 .results-scroll {
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
 }
 
 .results-block .results-table {
