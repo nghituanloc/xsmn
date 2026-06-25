@@ -1,4 +1,6 @@
 import { REFRESH_START_MIN } from './constants.js';
+import { appState } from './state.js';
+import { isPwaInstallable, promptPwaInstall } from './pwa-install.js';
 import {
   vnNow,
   toISO,
@@ -38,7 +40,20 @@ export function refreshNavButtons() {
   const btnNext = document.getElementById('btnNext');
   if (!btnNext) return;
   const nextBlocked = isNextBlocked();
+  const showInstall = nextBlocked && isPwaInstallable();
+
+  if (showInstall) {
+    btnNext.textContent = 'Cài app';
+    btnNext.disabled = false;
+    btnNext.classList.add('btn-install');
+    btnNext.setAttribute('aria-label', 'Cài ứng dụng lên màn hình');
+    btnNext.onclick = () => promptPwaInstall();
+    return;
+  }
+
   btnNext.textContent = 'Ngày sau';
+  btnNext.classList.remove('btn-install');
+  btnNext.removeAttribute('aria-label');
   btnNext.disabled = nextBlocked;
   btnNext.onclick = nextBlocked ? null : () => changeDate(1);
 }

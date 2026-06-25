@@ -8,11 +8,13 @@ import {
   setupPullToRefresh,
   setupInfiniteScroll,
 } from './js/pwa-scroll.js';
+import { setupPwaInstallPrompt } from './js/pwa-install.js';
 import { initStickyProvinceHeaders } from './js/sticky-province.js';
 
 window.addEventListener('load', () => {
   registerServiceWorker();
   detectInstalledMode();
+  setupPwaInstallPrompt();
   setupVisibilityRefresh();
   setupPullToRefresh();
   bindNavigation();

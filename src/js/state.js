@@ -22,6 +22,7 @@ export const appState = {
   realtimeAnimatingCells: new Map(),
   refreshTimer: null,
   appInstalled: false,
+  deferredInstallPrompt: null,
   pullStartY: null,
   isPulling: false,
   isRefreshing: false,

@@ -54,6 +54,18 @@
   background: #f9fafb;
 }
 
+.btn-nav.btn-install {
+  opacity: 1;
+  cursor: pointer;
+  background: #fff;
+  color: var(--blue);
+  border-color: var(--blue);
+}
+
+.btn-nav.btn-install:active {
+  background: #e8eef7;
+}
+
 .date-shortcuts {
   display: flex;
   flex-wrap: wrap;
