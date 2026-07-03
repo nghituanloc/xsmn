@@ -28,4 +28,5 @@ export const appState = {
   isRefreshing: false,
   currentPullDistance: 0,
   lastVisibilityRefresh: 0,
+  lastBackgroundTime: 0,
 };

@@ -29,3 +29,4 @@ export const PRIZES = [
 
 export const PULL_THRESHOLD = 70;
 export const VISIBILITY_REFRESH_GAP = 30000;
+export const STALE_BACKGROUND_MS = 6 * 60 * 60 * 1000; // 6 giờ

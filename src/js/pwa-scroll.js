@@ -1,7 +1,7 @@
-import { PULL_THRESHOLD, VISIBILITY_REFRESH_GAP } from './constants.js';
+import { PULL_THRESHOLD, VISIBILITY_REFRESH_GAP, STALE_BACKGROUND_MS } from './constants.js';
 import { appState } from './state.js';
-import { parseISOToDate, getDateInput } from './date-utils.js';
-import { reloadDay, manageAutoRefresh, loadMoreIfNeeded } from './day-loader.js';
+import { vnNow, parseISOToDate, getDateInput } from './date-utils.js';
+import { reloadDay, resetAndLoad, manageAutoRefresh, loadMoreIfNeeded } from './day-loader.js';
 
 const pullIndicator = document.getElementById('pullIndicator');
 const btnTop = document.getElementById('btnTop');
@@ -83,10 +83,31 @@ function resetHideTopTimer() {
 }
 
 export function setupVisibilityRefresh() {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return;
+  /* Ghi lại thời điểm app bắt đầu hoạt động */
+  appState.lastBackgroundTime = Date.now();
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      /* App vào background → ghi timestamp */
+      appState.lastBackgroundTime = Date.now();
+      return;
+    }
+
+    /* App quay lại foreground */
     const nowTs = Date.now();
+    const backgroundDuration = nowTs - appState.lastBackgroundTime;
+
+    /* Nếu ở background quá 6 giờ → load lại dữ liệu ngày hôm nay */
+    if (backgroundDuration >= STALE_BACKGROUND_MS) {
+      console.log('[pwa] App ở background quá 6 giờ, tải lại dữ liệu hôm nay');
+      appState.lastVisibilityRefresh = nowTs;
+      const today = vnNow();
+      resetAndLoad(today);
+      manageAutoRefresh();
+      return;
+    }
+
+    /* Logic refresh bình thường (< 6 giờ) — chỉ áp dụng khi đã cài app */
     if (nowTs - appState.lastVisibilityRefresh < VISIBILITY_REFRESH_GAP) return;
 
     const inStandalone =
