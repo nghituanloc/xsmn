@@ -23,47 +23,34 @@
   border: 1px solid #ddd;
 }
 
-.date-nav-row {
+.btn-install-app {
   display: flex;
-  gap: var(--space);
+  align-items: center;
   justify-content: center;
-}
-
-.btn-nav {
-  flex: 1;
+  gap: 6px;
+  width: 100%;
   min-height: var(--touch-min);
-  min-width: 0;
   font-size: var(--font-base);
-  font-weight: 800;
-  color: var(--text);
-  background: #fff;
-  border: 2px solid var(--btn-border);
+  font-weight: 700;
+  color: #fff;
+  background: var(--blue);
+  border: none;
   border-radius: var(--radius);
   cursor: pointer;
   touch-action: manipulation;
-  padding: 10px 8px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.3);
+  transition: background 0.15s ease, transform 0.1s ease;
 }
 
-.btn-nav:active:not(:disabled) {
-  background: #e5e7eb;
+.btn-install-app:active {
+  background: #0d47a1;
+  transform: scale(0.98);
 }
 
-.btn-nav:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: #f9fafb;
-}
-
-.btn-nav.btn-install {
-  opacity: 1;
-  cursor: pointer;
-  background: #fff;
-  color: var(--blue);
-  border-color: var(--blue);
-}
-
-.btn-nav.btn-install:active {
-  background: #e8eef7;
+.btn-install-app[hidden] {
+  display: none !important;
 }
 
 .date-shortcuts {

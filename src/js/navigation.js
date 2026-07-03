@@ -1,4 +1,3 @@
-import { REFRESH_START_MIN } from './constants.js';
 import { appState } from './state.js';
 import { isPwaInstallable, promptPwaInstall } from './pwa-install.js';
 import {
@@ -33,48 +32,24 @@ export function updateUI(dateObj) {
 
   document.title = `KQXS MN - ${getDayNameVi(dateObj)} ${toDMY(dateObj)}`;
 
-  refreshNavButtons();
+  refreshInstallButton();
 }
 
-export function refreshNavButtons() {
-  const btnNext = document.getElementById('btnNext');
-  if (!btnNext) return;
-  const nextBlocked = isNextBlocked();
-  const showInstall = nextBlocked && isPwaInstallable();
+export function refreshInstallButton() {
+  const btn = document.getElementById('btnInstallApp');
+  if (!btn) return;
 
-  if (showInstall) {
-    btnNext.textContent = 'Cài app';
-    btnNext.disabled = false;
-    btnNext.classList.add('btn-install');
-    btnNext.setAttribute('aria-label', 'Cài ứng dụng lên màn hình');
-    btnNext.onclick = () => promptPwaInstall();
-    return;
+  if (isPwaInstallable()) {
+    btn.hidden = false;
+    btn.onclick = () => promptPwaInstall();
+  } else {
+    btn.hidden = true;
+    btn.onclick = null;
   }
-
-  btnNext.textContent = 'Ngày sau';
-  btnNext.classList.remove('btn-install');
-  btnNext.removeAttribute('aria-label');
-  btnNext.disabled = nextBlocked;
-  btnNext.onclick = nextBlocked ? null : () => changeDate(1);
 }
 
-export function isNextBlocked() {
-  const btnNext = document.getElementById('btnNext');
-  if (!btnNext) return false;
-  const input = getDateInput();
-  if (!input || !input.value) return false;
-  const current = vnNow();
-  const todayStart = new Date(current.getFullYear(), current.getMonth(), current.getDate());
-  const viewing = parseISOToDate(input.value);
-  const target = new Date(viewing);
-  target.setDate(target.getDate() + 1);
-  const targetStart = new Date(target.getFullYear(), target.getMonth(), target.getDate());
-  const currentMinutes = current.getHours() * 60 + current.getMinutes();
-
-  if (targetStart.getTime() > todayStart.getTime()) return true;
-  if (targetStart.getTime() === todayStart.getTime() && currentMinutes < REFRESH_START_MIN) return true;
-  return false;
-}
+/* Alias giữ tương thích với pwa-install.js gọi refreshNavButtons */
+export const refreshNavButtons = refreshInstallButton;
 
 export function checkFutureAndAlert(selectedDate) {
   const current = vnNow();
@@ -90,16 +65,6 @@ export function checkFutureAndAlert(selectedDate) {
     return true;
   }
   return false;
-}
-
-export function changeDate(offset) {
-  const input = getDateInput();
-  const d = parseISOToDate(input.value);
-  d.setDate(d.getDate() + offset);
-  if (checkFutureAndAlert(d)) return;
-  const { normalized } = normalizeBeforeDraw(d);
-  resetAndLoad(normalized);
-  manageAutoRefresh();
 }
 
 export function handleDateChange() {
@@ -129,7 +94,6 @@ export function toggleDatePicker() {
 }
 
 export function bindNavigation() {
-  document.getElementById('btnPrev')?.addEventListener('click', () => changeDate(-1));
   document.getElementById('btnPickDate')?.addEventListener('click', toggleDatePicker);
   getDateInput()?.addEventListener('change', handleDateChange);
 }
