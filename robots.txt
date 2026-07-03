@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://nghituanloc.github.io/xsmn/sitemap.xml
