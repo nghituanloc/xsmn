@@ -14,7 +14,7 @@ function measureProvinceColumnWidth() {
   const root = document.documentElement;
   const cs = getComputedStyle(root);
   const fontFamily =
-    cs.getPropertyValue('--font-family').trim() || "'Be Vietnam Pro', sans-serif";
+    cs.getPropertyValue('--font-family').trim() || "'Roboto', sans-serif";
   const fontSize = cs.getPropertyValue('--font-prize').trim() || '2.75rem';
   const padInline = readRootPx('--cell-pad-inline', 0.875) * 16;
 
@@ -46,7 +46,7 @@ function measurePrizeLabelColumnWidth() {
   const root = document.documentElement;
   const cs = getComputedStyle(root);
   const fontFamily =
-    cs.getPropertyValue('--font-family').trim() || "'Be Vietnam Pro', sans-serif";
+    cs.getPropertyValue('--font-family').trim() || "'Roboto', sans-serif";
   const fontSize = cs.getPropertyValue('--font-label').trim() || '1.0625rem';
 
   const labels = ['ĐẶC BIỆT', 'Giải Nhất', 'Giải Nhì'];
