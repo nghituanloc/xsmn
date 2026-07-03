@@ -10,17 +10,28 @@ function pickText(box, sel) {
   return (el?.textContent || '').replace(/\s+/g, ' ').trim();
 }
 
-function assertJQueryReady() {
-  if (!window.jQuery || !window.$) {
-    console.error('[api] jQuery chưa sẵn sàng — script minhngoc cần $');
-    return false;
-  }
-  return true;
+function loadJQuery() {
+  return new Promise((resolve) => {
+    if (window.jQuery && window.$) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://code.jquery.com/jquery-3.7.1.min.js';
+    script.crossOrigin = 'anonymous';
+    script.onload = () => resolve(true);
+    script.onerror = () => {
+      console.error('[api] Không thể tải jQuery');
+      resolve(false);
+    };
+    document.head.appendChild(script);
+  });
 }
 
 export function loadProvince(slug, dmyDash) {
-  return new Promise((resolve) => {
-    if (!assertJQueryReady()) {
+  return new Promise(async (resolve) => {
+    const isJqueryReady = await loadJQuery();
+    if (!isJqueryReady) {
       resolve(null);
       return;
     }

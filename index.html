@@ -41,10 +41,13 @@
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
 
-  <!-- Fonts -->
+  <!-- Fonts Optimization -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+  </noscript>
 
   <!-- Styles -->
   <link rel="stylesheet" href="./src/styles/tokens.css">
@@ -124,7 +127,6 @@
   <button id="btnTop" type="button" class="scroll-top" aria-label="Lên đầu trang">Lên đầu</button>
   <div id="pullIndicator" class="pull-indicator">Làm mới</div>
 
-  <script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
